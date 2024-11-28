@@ -2,9 +2,8 @@
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
-class TestClient
+class HangmanClient
 {
     private const string ServerAddress = "127.0.0.1"; // IP-адрес сервера
     private const int ServerPort = 8001; // Порт сервера
@@ -18,80 +17,97 @@ class TestClient
             {
                 Console.WriteLine("Connected to server.");
 
-                // 1. Отправляем имя игрока
-                var setNameRequest = new SetNameDTO
-                {
-                    Command = "SET_NAME",
-                    Name = "TestPlayer"
-                };
-                SendMessage(stream, setNameRequest);
-                var serverResponse = ReadMessage(stream);
-                Console.WriteLine($"Server: {serverResponse}");
-
-                // 2. Создаём комнату
-                var createRoomRequest = new CreateRoomDTO
+                // 1. Создание комнаты
+                var createRoomRequest = new CreateRoomRequest
                 {
                     Command = "CREATE_ROOM",
+                    PlayerUsername = "TestPlayer",
                     RoomID = "TestRoom",
                     Password = "12345"
                 };
                 SendMessage(stream, createRoomRequest);
-                serverResponse = ReadMessage(stream);
-                Console.WriteLine($"Server: {serverResponse}");
+                Console.WriteLine($"Server: {ReadMessage(stream)}");
 
-                // 3. Начинаем игру
-                var startGameRequest = new StartGameDTO
+                // 2. Присоединение к комнате
+                var joinRoomRequest = new JoinRoomRequest
                 {
-                    RoomID = "TestRoom" // Указываем идентификатор комнаты
+                    Command = "JOIN_ROOM",
+                    PlayerUsername = "TestPlayer",
+                    RoomID = "TestRoom",
+                    Password = "12345",
+                    PlayerName = "TestPlayer"
                 };
+                SendMessage(stream, joinRoomRequest);
+                Console.WriteLine($"Server: {ReadMessage(stream)}");
 
-                // Отправка команды на сервер
-                SendMessage(stream, startGameRequest);
-                serverResponse = ReadMessage(stream);
-                Console.WriteLine($"Server: {serverResponse}");
-
-                // 4. Получаем состояние игры
-                var getGameStateRequest = new GetGameStateDTO
+                // 3. Запуск игры
+                var startGameRequest = new StartGameRequest
                 {
-                    Command = "GET_GAME_STATE",
+                    Command = "START_GAME",
+                    PlayerUsername = "TestPlayer",
                     RoomID = "TestRoom"
                 };
-                SendMessage(stream, getGameStateRequest);
-                serverResponse = ReadMessage(stream);
-                Console.WriteLine($"Server: {serverResponse}");
+                SendMessage(stream, startGameRequest);
+                Console.WriteLine($"Server: {ReadMessage(stream)}");
 
-                // 3. Отправляем угадывание буквы
-                Console.WriteLine("Enter a letter to guess:");
-                string letter = Console.ReadLine()?.Trim();
+                // 4. Игровой процесс
+                bool gameOver = false;
+                while (!gameOver)
+                {
+                    // Получение состояния игры
+                    var getGameStateRequest = new GetGameStateRequest
+                    {
+                        Command = "GET_GAME_STATE",
+                        PlayerUsername = "TestPlayer",
+                        RoomID = "TestRoom"
+                    };
+                    SendMessage(stream, getGameStateRequest);
 
-                if (!IsValidLetter(letter))
-                {
-                    Console.WriteLine("Invalid input. Please enter a single letter.");
-                    return;
-                }
+                    // Обрабатываем ответ
+                    string gameStateResponse = ReadMessage(stream);
+                    var gameState = DeserializeResponse<Response<string>>(gameStateResponse);
+                    if (gameState.Status == "error")
+                    {
+                        Console.WriteLine($"Error: {gameState.Error.Message}");
+                        continue;
+                    }
+                    Console.WriteLine($"Game State: {gameState.Data}");
 
-                var guessLetterRequest = new GuessLetterDTO
-                {
-                    Command = "GUESS_LETTER",
-                    RoomID = "TestRoom",
-                    PlayerName = "TestPlayer",
-                    Letter = letter
-                };
-                SendMessage(stream, guessLetterRequest);
-                serverResponse = ReadMessage(stream);
-                Console.WriteLine($"Server: {serverResponse}");
+                    // Запрос буквы
+                    Console.Write("Enter a letter to guess: ");
+                    string letter = Console.ReadLine()?.Trim();
 
-                // Обработка ответа
-                var guessResponse = JsonSerializer.Deserialize<Response<GuessResponse>>(serverResponse);
-                if (guessResponse.Status == "error")
-                {
-                    Console.WriteLine($"Error: {guessResponse.Error.Message}");
-                }
-                else
-                {
-                    Console.WriteLine($"Correct: {guessResponse.Data.IsCorrect}");
-                    Console.WriteLine($"Feedback: {guessResponse.Data.Feedback}");
-                    Console.WriteLine($"Game Over: {guessResponse.Data.GameOver}");
+                    if (!IsValidLetter(letter))
+                    {
+                        Console.WriteLine("Invalid input. Please enter a single letter.");
+                        continue;
+                    }
+
+                    // Угадывание буквы
+                    var guessLetterRequest = new GuessLetterRequest
+                    {
+                        Command = "GUESS_LETTER",
+                        PlayerUsername = "TestPlayer",
+                        RoomID = "TestRoom",
+                        PlayerName = "TestPlayer",
+                        Letter = letter
+                    };
+                    SendMessage(stream, guessLetterRequest);
+
+                    // Обрабатываем ответ
+                    string guessResponseJson = ReadMessage(stream);
+                    var guessResponse = DeserializeResponse<Response<GuessLetterResponse>>(guessResponseJson);
+
+                    if (guessResponse.Status == "error")
+                    {
+                        Console.WriteLine($"Error: {guessResponse.Error.Message}");
+                        continue;
+                    }
+
+                    var guessData = guessResponse.Data;
+                    Console.WriteLine($"Correct: {guessData.IsCorrect}");
+                    Console.WriteLine($"Feedback: {guessData.Feedback}");
+                    gameOver = guessData.GameOver;
                 }
             }
         }
@@ -117,99 +133,26 @@ class TestClient
     {
         byte[] buffer = new byte[1024];
         int bytesRead = stream.Read(buffer, 0, buffer.Length);
-        return Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+        Console.WriteLine($"Received: {message}");
+        return message;
+    }
+
+    static T DeserializeResponse<T>(string jsonResponse)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(jsonResponse);
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"Error deserializing response: {ex.Message}");
+            throw;
+        }
     }
 
     static bool IsValidLetter(string input)
     {
         return !string.IsNullOrWhiteSpace(input) && input.Length == 1 && char.IsLetter(input[0]);
-    }
-
-    class SetNameDTO
-    {
-        [JsonPropertyName("command")]
-        public string Command { get; set; }
-
-        [JsonPropertyName("name")]
-        public string Name { get; set; }
-    }
-
-    class CreateRoomDTO
-    {
-        [JsonPropertyName("command")]
-        public string Command { get; set; }
-
-        [JsonPropertyName("room_id")]
-        public string RoomID { get; set; }
-
-        [JsonPropertyName("password")]
-        public string Password { get; set; }
-    }
-
-
-    class StartGameDTO
-    {
-        [JsonPropertyName("command")]
-        public string Command { get; set; } = "START_GAME"; // Команда запуска игры
-
-        [JsonPropertyName("room_id")]
-        public string RoomID { get; set; } // Идентификатор комнаты, где игра должна быть запущена
-    }
-
-    class GetGameStateDTO
-    {
-        [JsonPropertyName("command")]
-        public string Command { get; set; }
-
-        [JsonPropertyName("room_id")]
-        public string RoomID { get; set; }
-    }
-
-    class GuessLetterDTO
-    {
-        [JsonPropertyName("command")]
-        public string Command { get; set; }
-
-        [JsonPropertyName("room_id")]
-        public string RoomID { get; set; }
-
-        [JsonPropertyName("player_name")]
-        public string PlayerName { get; set; }
-
-        [JsonPropertyName("letter")]
-        public string Letter { get; set; }
-    }
-
-    class Response<T>
-    {
-        [JsonPropertyName("status")]
-        public string Status { get; set; }
-
-        [JsonPropertyName("data")]
-        public T Data { get; set; }
-
-        [JsonPropertyName("error")]
-        public ErrorDTO Error { get; set; }
-    }
-
-    class ErrorDTO
-    {
-        [JsonPropertyName("code")]
-        public int Code { get; set; }
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
-    }
-
-    class GuessResponse
-    {
-        [JsonPropertyName("is_correct")]
-        public bool IsCorrect { get; set; }
-
-        [JsonPropertyName("feedback")]
-        public string Feedback { get; set; }
-
-        [JsonPropertyName("game_over")]
-        public bool GameOver { get; set; }
     }
 }

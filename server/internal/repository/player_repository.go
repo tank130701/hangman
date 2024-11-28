@@ -21,11 +21,11 @@ func (r *InMemoryPlayerRepository) AddPlayer(player *domain.Player) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.players[player.Name]; exists {
+	if _, exists := r.players[player.Username]; exists {
 		return errors.New("player already exists")
 	}
 
-	r.players[player.Name] = player
+	r.players[player.Username] = player
 	return nil
 }
 

@@ -71,14 +71,14 @@ func (rc *RoomController) LeaveRoom(player *domain.Player, roomID string) error 
 
 	// Удаляем игрока из комнаты
 	for i, p := range room.Players {
-		if p.Name == player.Name {
+		if p.Username == player.Username {
 			room.Players = append(room.Players[:i], room.Players[i+1:]...)
 			break
 		}
 	}
 
 	// Если игрок — владелец, переназначаем нового
-	if room.Owner.Name == player.Name && len(room.Players) > 0 {
+	if room.Owner.Username == player.Username && len(room.Players) > 0 {
 		room.Owner = room.Players[0]
 	}
 
@@ -87,7 +87,7 @@ func (rc *RoomController) LeaveRoom(player *domain.Player, roomID string) error 
 		rc.roomRepo.RemoveRoom(roomID)
 	}
 
-	rc.playerRepo.RemovePlayer(player.Name)
+	rc.playerRepo.RemovePlayer(player.Username)
 	return nil
 }
 
@@ -98,13 +98,13 @@ func (rc *RoomController) DeleteRoom(player *domain.Player, roomID string) error
 	}
 
 	// Проверяем, является ли пользователь владельцем комнаты
-	if room.Owner.Name != player.Name {
+	if room.Owner.Username != player.Username {
 		return errors.New("only the owner can delete the room")
 	}
 
 	// Удаляем всех игроков из комнаты
 	for _, p := range room.Players {
-		rc.playerRepo.RemovePlayer(p.Name)
+		rc.playerRepo.RemovePlayer(p.Username)
 	}
 
 	// Удаляем комнату из репозитория
@@ -135,7 +135,7 @@ func (rc *RoomController) StartGame(player *domain.Player, roomID string) error 
 		return err
 	}
 
-	if room.Owner.Name != player.Name {
+	if room.Owner.Username != player.Username {
 		return errors.New("only the owner can start the game")
 	}
 

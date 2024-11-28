@@ -18,6 +18,9 @@ func main() {
 	gameService := service.NewGameService()
 	roomController := service.NewRoomController(roomRepo, playerRepo, gameService)
 
+	// Обработчики
+	handlers := tcp.NewHandler(roomController)
+
 	// Запускаем процесс очистки неактивных комнат
 	go func() {
 		timeout := 300 // Таймаут удаления комнат в секундах
@@ -26,7 +29,7 @@ func main() {
 	}()
 
 	// Создаём и запускаем TCP-сервер
-	srv := tcp.New(":8001", roomController, logger) // Передаем RoomController и Logger
+	srv := tcp.New(":8001", handlers, logger) // Передаем RoomController и Logger
 	if err := srv.Start(); err != nil {
 		logger.Fatalf("Failed to start server: %v", err)
 	}
