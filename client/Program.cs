@@ -1,149 +1,55 @@
 ﻿using System;
-using System.Net.Sockets;
-using System.Text;
-using System.Text.Json;
 
-class HangmanClient
+using SimpleCMenu.Menu;
+
+namespace SimpleCMenu
 {
-    private const string ServerAddress = "127.0.0.1"; // IP-адрес сервера
-    private const int ServerPort = 8001; // Порт сервера
-
-    static void Main(string[] args)
+    class Program
     {
-        try
+        static void Main(string[] args)
         {
-            using (TcpClient client = new TcpClient(ServerAddress, ServerPort))
-            using (NetworkStream stream = client.GetStream())
-            {
-                Console.WriteLine("Connected to server.");
+            string headerText = "  __  __                     _____           _                 " +
+                Environment.NewLine + " |  \\/  |                   / ____|         | |                " +
+                Environment.NewLine + " | \\  / | ___ _ __  _   _  | (___  _   _ ___| |_ ___ _ __ ___" +
+                Environment.NewLine + " | |\\/| |/ _ \\ '_ \\| | | |  \\___ \\| | | / __| __/ _ \\ '_ ` _ \\" +
+                Environment.NewLine + " | |  | |  __/ | | | |_| |  ____) | |_| \\__ \\ ||  __/ | | | | |" +
+                Environment.NewLine + " |_|  |_|\\___|_| |_|\\__,_| |_____/ \\__, |___/\\__\\___|_| |_| |_|" +
+                Environment.NewLine + "                                    __/ |    " +
+                Environment.NewLine + "                                   |___/             ";
 
-                // 1. Создание комнаты
-                var createRoomRequest = new CreateRoomRequest
-                {
-                    Command = "CREATE_ROOM",
-                    PlayerUsername = "TestPlayer",
-                    RoomID = "TestRoom",
-                    Password = "12345"
-                };
-                SendMessage(stream, createRoomRequest);
-                Console.WriteLine($"Server: {ReadMessage(stream)}");
 
-                // 3. Запуск игры
-                var startGameRequest = new StartGameRequest
-                {
-                    Command = "START_GAME",
-                    PlayerUsername = "TestPlayer",
-                    RoomID = "TestRoom"
-                };
-                SendMessage(stream, startGameRequest);
-                Console.WriteLine($"Server: {ReadMessage(stream)}");
+            Console.Clear();
 
-                // 4. Игровой процесс
-                bool gameOver = false;
-                while (!gameOver)
-                {
-                    // Получение состояния игры
-                    var getGameStateRequest = new GetGameStateRequest
-                    {
-                        Command = "GET_GAME_STATE",
-                        PlayerUsername = "TestPlayer",
-                        RoomID = "TestRoom"
-                    };
-                    SendMessage(stream, getGameStateRequest);
+            // Setup the menu
+            ConsoleMenu mainMenu = new ConsoleMenu();
 
-                    // Обрабатываем ответ
-                    string gameStateResponse = ReadMessage(stream);
-                    Console.WriteLine($"Server: {ReadMessage(stream)}");
-                    // var gameState = DeserializeResponse<Response<string>>(gameStateResponse);
-                    // if (gameState.StatusCode != 2000)
-                    // {
-                    //     Console.WriteLine($"Error: {gameState.Error.Message}");
-                    //     continue;
-                    // }
-                    // Console.WriteLine($"Game State: {gameState.Data}");
+            ConsoleMenu subMenu1 = new ConsoleMenu("==>");
+            subMenu1.SubTitle = "---------------- Secret Menu -----------------";
+            subMenu1.addMenuItem(0, "backToMain", subMenu1.hideMenu);
+            subMenu1.ParentMenu = mainMenu;
 
-                    // Запрос буквы
-                    Console.Write("Enter a letter to guess: ");
-                    string letter = Console.ReadLine()?.Trim();
+            mainMenu.Header = headerText;
+            subMenu1.Header = mainMenu.Header;
 
-                    if (!IsValidLetter(letter))
-                    {
-                        Console.WriteLine("Invalid input. Please enter a single letter.");
-                        continue;
-                    }
+            mainMenu.SubTitle = "-------------------- Menu ----------------------";
+            mainMenu.addMenuItem(0, "Hello World!", HelloWorld);
+            mainMenu.addMenuItem(1, "Secret Menu", subMenu1.showMenu);
+            mainMenu.addMenuItem(2, "Exit", Exit);
+            // Display the menu
+            mainMenu.showMenu();
 
-                    // Угадывание буквы
-                    var guessLetterRequest = new GuessLetterRequest
-                    {
-                        Command = "GUESS_LETTER",
-                        PlayerUsername = "TestPlayer",
-                        RoomID = "TestRoom",
-                        PlayerName = "TestPlayer",
-                        Letter = letter
-                    };
-                    SendMessage(stream, guessLetterRequest);
-
-                    // Обрабатываем ответ
-                    string guessResponseJson = ReadMessage(stream);
-                    Console.WriteLine($"Server: {ReadMessage(stream)}");
-                    // var guessResponse = DeserializeResponse<Response<GuessLetterResponse>>(guessResponseJson);
-
-                    // if (guessResponse.StatusCode != 2000)
-                    // {
-                    //     Console.WriteLine($"Error: {guessResponse.Error.Message}");
-                    //     continue;
-                    // }
-
-                    // var guessData = guessResponse.Data;
-                    // Console.WriteLine($"Correct: {guessData.IsCorrect}");
-                    // Console.WriteLine($"Feedback: {guessData.Feedback}");
-                    // gameOver = guessData.GameOver;
-                }
-
-                Console.WriteLine("Game over!");
-            }
         }
-        catch (SocketException ex)
+
+
+        public static void Exit()
         {
-            Console.WriteLine($"Socket error: {ex.Message}");
+            Environment.Exit(0);
         }
-        catch (Exception ex)
+
+        public static void HelloWorld()
         {
-            Console.WriteLine($"General error: {ex.Message}");
+            Console.WriteLine("Hello World!");
+            Console.ReadKey(true);
         }
-    }
-
-    static void SendMessage(NetworkStream stream, object message)
-    {
-        string jsonMessage = JsonSerializer.Serialize(message);
-        byte[] data = Encoding.UTF8.GetBytes(jsonMessage + "\n");
-        stream.Write(data, 0, data.Length);
-        Console.WriteLine($"Sent: {jsonMessage}");
-    }
-
-    static string ReadMessage(NetworkStream stream)
-    {
-        byte[] buffer = new byte[1024];
-        int bytesRead = stream.Read(buffer, 0, buffer.Length);
-        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-        return message;
-    }
-
-    static T DeserializeResponse<T>(string jsonResponse)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<T>(jsonResponse);
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine($"Error deserializing response: {ex.Message}");
-            throw;
-        }
-    }
-
-    static bool IsValidLetter(string input)
-    {
-        return !string.IsNullOrWhiteSpace(input) && input.Length == 1 && char.IsLetter(input[0]);
     }
 }
