@@ -28,18 +28,6 @@ class HangmanClient
                 SendMessage(stream, createRoomRequest);
                 Console.WriteLine($"Server: {ReadMessage(stream)}");
 
-                // 2. Присоединение к комнате
-                var joinRoomRequest = new JoinRoomRequest
-                {
-                    Command = "JOIN_ROOM",
-                    PlayerUsername = "TestPlayer",
-                    RoomID = "TestRoom",
-                    Password = "12345",
-                    PlayerName = "TestPlayer"
-                };
-                SendMessage(stream, joinRoomRequest);
-                Console.WriteLine($"Server: {ReadMessage(stream)}");
-
                 // 3. Запуск игры
                 var startGameRequest = new StartGameRequest
                 {
@@ -65,13 +53,14 @@ class HangmanClient
 
                     // Обрабатываем ответ
                     string gameStateResponse = ReadMessage(stream);
-                    var gameState = DeserializeResponse<Response<string>>(gameStateResponse);
-                    if (gameState.Status == "error")
-                    {
-                        Console.WriteLine($"Error: {gameState.Error.Message}");
-                        continue;
-                    }
-                    Console.WriteLine($"Game State: {gameState.Data}");
+                    Console.WriteLine($"Server: {ReadMessage(stream)}");
+                    // var gameState = DeserializeResponse<Response<string>>(gameStateResponse);
+                    // if (gameState.StatusCode != 2000)
+                    // {
+                    //     Console.WriteLine($"Error: {gameState.Error.Message}");
+                    //     continue;
+                    // }
+                    // Console.WriteLine($"Game State: {gameState.Data}");
 
                     // Запрос буквы
                     Console.Write("Enter a letter to guess: ");
@@ -96,19 +85,22 @@ class HangmanClient
 
                     // Обрабатываем ответ
                     string guessResponseJson = ReadMessage(stream);
-                    var guessResponse = DeserializeResponse<Response<GuessLetterResponse>>(guessResponseJson);
+                    Console.WriteLine($"Server: {ReadMessage(stream)}");
+                    // var guessResponse = DeserializeResponse<Response<GuessLetterResponse>>(guessResponseJson);
 
-                    if (guessResponse.Status == "error")
-                    {
-                        Console.WriteLine($"Error: {guessResponse.Error.Message}");
-                        continue;
-                    }
+                    // if (guessResponse.StatusCode != 2000)
+                    // {
+                    //     Console.WriteLine($"Error: {guessResponse.Error.Message}");
+                    //     continue;
+                    // }
 
-                    var guessData = guessResponse.Data;
-                    Console.WriteLine($"Correct: {guessData.IsCorrect}");
-                    Console.WriteLine($"Feedback: {guessData.Feedback}");
-                    gameOver = guessData.GameOver;
+                    // var guessData = guessResponse.Data;
+                    // Console.WriteLine($"Correct: {guessData.IsCorrect}");
+                    // Console.WriteLine($"Feedback: {guessData.Feedback}");
+                    // gameOver = guessData.GameOver;
                 }
+
+                Console.WriteLine("Game over!");
             }
         }
         catch (SocketException ex)
@@ -134,7 +126,6 @@ class HangmanClient
         byte[] buffer = new byte[1024];
         int bytesRead = stream.Read(buffer, 0, buffer.Length);
         string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-        Console.WriteLine($"Received: {message}");
         return message;
     }
 

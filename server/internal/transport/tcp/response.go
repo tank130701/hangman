@@ -1,23 +1,37 @@
 package tcp
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
-// createSuccessResponse создает JSON для успешного ответа
-func createSuccessResponse(payload []byte) []byte {
+// Response представляет универсальный ответ сервера
+type Response struct {
+	Code    int             `json:"code"`              // Код ответа (например, 200, 400, 500)
+	Payload json.RawMessage `json:"payload,omitempty"` // Данные ответа в случае успеха
+	Error   *Error          `json:"error,omitempty"`   // Описание ошибки
+}
+
+// Error представляет структуру ошибки
+type Error struct {
+	Message string `json:"message"` // Описание ошибки
+}
+
+// CreateSuccessfulResponse создает JSON-ответ для успешного запроса
+func createSuccessfulResponse(payload []byte) []byte {
+	// Код ответа для успешных операций
 	response := Response{
-		Status:  "success",
+		Code:    2000,
 		Payload: payload,
 	}
 	respJSON, _ := json.Marshal(response)
 	return respJSON
 }
 
-// createErrorResponse создает JSON для ошибки
+// CreateErrorResponse создает JSON-ответ для ошибки
 func createErrorResponse(code int, message string) []byte {
 	response := Response{
-		Status: "error",
+		Code: code,
 		Error: &Error{
-			Code:    code,
 			Message: message,
 		},
 	}

@@ -5,48 +5,45 @@ import (
 	"net"
 )
 
-// Response представляет стандартный ответ сервера
-type Response struct {
-	Status  string `json:"status"`          // "success" или "error"
-	Payload []byte `json:"data,omitempty"`  // Данные ответа в случае успеха
-	Error   *Error `json:"error,omitempty"` // Ошибка в случае неуспеха
-}
-
-// Error представляет структуру ошибки
-type Error struct {
-	Code    int    `json:"code"`    // Код ошибки
-	Message string `json:"message"` // Описание ошибки
-}
-
 // processMessage обрабатывает JSON-команды
 func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
+	// Логируем входящий запрос
+	s.logger.Printf("Received message: %s", string(message))
+
 	var request BaseRequest
 	if err := json.Unmarshal(message, &request); err != nil {
-		return createErrorResponse(4000, "Invalid JSON format")
+		errMessage := "Invalid JSON format"
+		s.logger.Printf("Error parsing request: %v", err)
+		return createErrorResponse(4000, errMessage)
 	}
 
 	var response []byte
-	var success bool
 	switch request.Command {
 	case "CREATE_ROOM":
-		response, success = s.handler.HandleCreateRoomRequest(message, conn)
+		response = s.handler.HandleCreateRoomRequest(message, conn)
 	case "START_GAME":
-		response, success = s.handler.HandleStartGameRequest(message, conn)
+		response = s.handler.HandleStartGameRequest(message, conn)
 	case "JOIN_ROOM":
-		response, success = s.handler.HandleJoinRoomRequest(message, conn)
+		response = s.handler.HandleJoinRoomRequest(message, conn)
 	case "DELETE_ROOM":
-		response, success = s.handler.HandleDeleteRoomRequest(message, conn)
+		response = s.handler.HandleDeleteRoomRequest(message, conn)
 	case "GUESS_LETTER":
-		response, success = s.handler.HandleGuessLetterRequest(message, conn)
+		response = s.handler.HandleGuessLetterRequest(message, conn)
 	case "GET_GAME_STATE":
-		response, success = s.handler.HandleGetGameStateRequest(message)
-
+		response = s.handler.HandleGetGameStateRequest(message)
 	default:
-		return createErrorResponse(ErrCodeUnknownCommand, "Unknown command")
+		unknownCommandMessage := "Unknown command"
+		s.logger.Printf("Unknown command: %s", request.Command)
+		return createErrorResponse(ErrCodeUnknownCommand, unknownCommandMessage)
 	}
 
-	if success {
-		return createSuccessResponse(response)
+	// Логируем ответ
+	var debugData map[string]interface{}
+	if err := json.Unmarshal(response, &debugData); err != nil {
+		s.logger.Printf("Failed to parse response JSON: %v", err)
+	} else {
+		prettyResponse, _ := json.MarshalIndent(debugData, "", "  ") // Форматирование JSON для читаемости
+		s.logger.Printf("Response JSON:\n%s", prettyResponse)
 	}
 
 	return response

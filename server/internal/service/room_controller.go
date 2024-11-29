@@ -36,7 +36,7 @@ func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password str
 	}
 
 	if err := rc.playerRepo.AddPlayer(player); err != nil {
-		rc.roomRepo.RemoveRoom(roomID)
+		err = rc.roomRepo.RemoveRoom(roomID)
 		return nil, err
 	}
 

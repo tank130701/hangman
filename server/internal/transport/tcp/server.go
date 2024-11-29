@@ -53,14 +53,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	for {
 		var response []byte
-		conn.Write([]byte("Enter a JSON command:\n"))
+		// conn.Write([]byte("Enter a JSON command:\n"))
 		message, err := reader.ReadString('\n')
 		if err != nil {
-			response = createErrorResponse(5000, err.Error())
+			response = createErrorResponse(ErrCodeInternalServerError, err.Error())
+		} else {
+			response = s.processMessage([]byte(strings.TrimSpace(message)), conn)
 		}
-
-		response = s.processMessage([]byte(strings.TrimSpace(message)), conn)
-
 		conn.Write(response)
 		conn.Write([]byte("\n"))
 	}
