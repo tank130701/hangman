@@ -1,9 +1,5 @@
 package tcp
 
-type BaseRequest struct {
-	Command string `json:"command"`
-}
-
 type CreateRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
 	Command        string `json:"command"`
