@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"encoding/json"
-	"fmt"
 	"hangman/internal/domain"
 	"hangman/pkg/tcp-server"
 	"net"
@@ -44,7 +43,10 @@ func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) []byte 
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
 
-	response := map[string]string{"message": fmt.Sprintf("Room has been created successfully (room_id: %s)", room.ID)}
+	response := map[string]string{
+		"message":  "Room has been created successfully",
+		"room_id:": room.ID,
+	}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
