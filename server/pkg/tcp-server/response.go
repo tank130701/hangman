@@ -1,4 +1,4 @@
-package tcp
+package tcp_server
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ type Error struct {
 }
 
 // CreateSuccessfulResponse создает JSON-ответ для успешного запроса
-func createSuccessfulResponse(payload []byte) []byte {
+func CreateSuccessfulResponse(payload []byte) []byte {
 	// Код ответа для успешных операций
 	response := Response{
 		Code:    2000,
@@ -28,7 +28,7 @@ func createSuccessfulResponse(payload []byte) []byte {
 }
 
 // CreateErrorResponse создает JSON-ответ для ошибки
-func createErrorResponse(code int, message string) []byte {
+func CreateErrorResponse(code int, message string) []byte {
 	response := Response{
 		Code: code,
 		Error: &Error{

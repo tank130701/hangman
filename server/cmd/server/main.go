@@ -4,6 +4,7 @@ import (
 	"hangman/internal/repository"
 	"hangman/internal/service"
 	"hangman/internal/transport/tcp"
+	"hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 )
 
@@ -19,7 +20,7 @@ func main() {
 	roomController := service.NewRoomController(roomRepo, playerRepo, gameService)
 
 	// Обработчики
-	handlers := tcp.NewHandler(roomController)
+	handler := tcp.NewHandler(roomController)
 
 	// Запускаем процесс очистки неактивных комнат
 	go func() {
@@ -29,7 +30,10 @@ func main() {
 	}()
 
 	// Создаём и запускаем TCP-сервер
-	srv := tcp.New(":8001", handlers, logger) // Передаем RoomController и Logger
+	srv := tcp_server.New(":8001", logger) // Передаем RoomController и Logger
+
+	handler.InitRoutes(srv)
+
 	if err := srv.Start(); err != nil {
 		logger.Fatalf("Failed to start server: %v", err)
 	}

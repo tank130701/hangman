@@ -1,4 +1,4 @@
-package tcp
+package tcp_server
 
 const (
 	// Общие ошибки
@@ -16,6 +16,6 @@ const (
 	ErrCodeGameOver       = 4201 // Игра завершена
 	ErrCodeInvalidMove    = 4202 // Некорректный ход
 
-	//
+	// Ошибки сервера
 	ErrCodeInternalServerError = 5000 // Ошибка на сервере
 )
