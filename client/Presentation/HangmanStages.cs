@@ -1,4 +1,4 @@
-namespace HangmanClient.Presentation
+namespace client.Presentation
 {
     public static class HangmanStages
     {

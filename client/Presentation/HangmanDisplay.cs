@@ -1,8 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Text;
 
-namespace HangmanClient.Presentation
+namespace client.Presentation
 {
     public class HangmanDisplay
     {

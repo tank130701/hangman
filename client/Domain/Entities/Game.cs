@@ -1,4 +1,4 @@
-namespace HangmanClient.Domain.Entities
+namespace client.Domain.Entities
 {
     public class Game
     {

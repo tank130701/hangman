@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net"
-	"strings"
 )
 
 type Server struct {
@@ -66,7 +65,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		if err != nil {
 			response = CreateErrorResponse(ErrCodeInternalServerError, err.Error())
 		} else {
-			response = s.processMessage([]byte(strings.TrimSpace(message)), conn)
+			response = s.processMessage([]byte(message), conn)
 		}
 		conn.Write(response)
 		conn.Write([]byte("\n"))
@@ -88,7 +87,6 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	var response []byte
 
 	handler, exists := s.handlers[request.Command]
-
 	if exists {
 		response = handler(conn, message)
 	} else {

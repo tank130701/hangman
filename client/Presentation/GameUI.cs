@@ -1,7 +1,6 @@
-using System;
-using HangmanClient.Domain.Interfaces;
+using client.Domain.Interfaces;
 
-namespace HangmanClient.Presentation
+namespace client.Presentation
 {
     public class GameUI
     {
@@ -12,35 +11,41 @@ namespace HangmanClient.Presentation
         {
             _gameService = gameService;
         }
-
+        public void CreateRoom()
+        {
+            _gameService.CreateRoom("testRoom", "1234");
+        }
         public void Start()
         {
-            _gameService.StartGame();
+            // _gameService.CreateRoom("testRoom", "1234");
+            _gameService.StartGame("testRoom");
+            _gameService.JoinRoom("testRoom", "1234");
 
-            while (!_gameService.IsGameOver())
+            while (!_gameService.IsGameOver("testRoom"))
             {
                 Console.Clear();
-                int attemptsRemaining = _gameService.GetRemainingAttempts();
-                _hangmanDisplay.DisplayHangman(attemptsRemaining);
-                
-                Console.WriteLine("Current Word: " + _gameService.GetGameState());
-                _hangmanDisplay.DisplayAlphabet();
+                // string attemptsRemaining = _gameService.GetGameState("testRoom");
+                // Console.WriteLine("" + attemptsRemaining);
+                // _hangmanDisplay.DisplayHangman(attemptsRemaining);
 
-                Console.Write("Enter your guess: ");
-                char guess = Console.ReadLine()[0];
-                
-                _hangmanDisplay.MarkLetterAsUsed(guess);
-                bool correct = _gameService.SendGuess(guess);
+                //     Console.WriteLine("Current Word: " + _gameService.GetGameState());
+                //     _hangmanDisplay.DisplayAlphabet();
 
-                Console.WriteLine(correct ? "Correct!" : "Incorrect!");
-                Thread.Sleep(1000); // Короткая пауза для восприятия
+                    Console.Write("Enter your guess: ");
+                    // char guess = Console.ReadLine()[0];
 
-                if (_gameService.IsGameOver())
-                {
-                    Console.Clear();
-                    _hangmanDisplay.DisplayHangman(0); // Последний этап виселицы
-                    Console.WriteLine(_gameService.HasWon() ? "Congratulations! You've won!" : "Game Over. Better luck next time!");
-                }
+                //     _hangmanDisplay.MarkLetterAsUsed(guess);
+                //     bool correct = _gameService.SendGuess("testRoom", guess);
+
+                //     Console.WriteLine(correct ? "Correct!" : "Incorrect!");
+                //     Thread.Sleep(1000); // Короткая пауза для восприятия
+
+                //     if (_gameService.IsGameOver("testRoom"))
+                //     {
+                //         Console.Clear();
+                //         _hangmanDisplay.DisplayHangman(0); // Последний этап виселицы
+                //         Console.WriteLine(_gameService.HasWon() ? "Congratulations! You've won!" : "Game Over. Better luck next time!");
+                //     }
             }
         }
     }

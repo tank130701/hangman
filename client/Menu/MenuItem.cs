@@ -1,6 +1,4 @@
-using System;
-
-namespace SimpleCMenu.Menu
+namespace client.Menu
 {
     public class MenuItem
     {

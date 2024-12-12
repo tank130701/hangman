@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // Общий универсальный ответ
@@ -13,35 +12,15 @@ public class ErrorResponse
 {
     public string Message { get; set; }
 }
-// Универсальный конвертер для произвольного содержимого payload
-public class JsonStringConverter : JsonConverter<JsonElement?>
-{
-    public override JsonElement? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        return JsonDocument.ParseValue(ref reader).RootElement;
-    }
 
-    public override void Write(Utf8JsonWriter writer, JsonElement? value, JsonSerializerOptions options)
-    {
-        if (value.HasValue)
-        {
-            value.Value.WriteTo(writer);
-        }
-        else
-        {
-            writer.WriteNullValue();
-        }
-    }
-}
 
 // DTO для создания комнаты
 public class CreateRoomRequest
 {
-    [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
     [JsonPropertyName("command")]
     public string Command { get; set; }
+    [JsonPropertyName("player_username")]
+    public string PlayerUsername { get; set; }
 
     [JsonPropertyName("room_id")]
     public string RoomID { get; set; }
@@ -90,6 +69,12 @@ public class GetGameStateRequest
 
     [JsonPropertyName("room_id")]
     public string RoomID { get; set; }
+}
+
+public class GetGameStateResponse
+{   
+    [JsonPropertyName("state")]
+    public string GameState { get; set; }
 }
 
 // DTO для угадывания буквы

@@ -1,54 +1,64 @@
-﻿using System;
+﻿using client.Application;
+using client.Infrastructure;
+using client.Menu;
+using client.Presentation;
 
-using SimpleCMenu.Menu;
-
-namespace SimpleCMenu
+namespace client
 {
     class Program
     {
         static void Main(string[] args)
-        {
-            string headerText = "  __  __                     _____           _                 " +
-                Environment.NewLine + " |  \\/  |                   / ____|         | |                " +
-                Environment.NewLine + " | \\  / | ___ _ __  _   _  | (___  _   _ ___| |_ ___ _ __ ___" +
-                Environment.NewLine + " | |\\/| |/ _ \\ '_ \\| | | |  \\___ \\| | | / __| __/ _ \\ '_ ` _ \\" +
-                Environment.NewLine + " | |  | |  __/ | | | |_| |  ____) | |_| \\__ \\ ||  __/ | | | | |" +
-                Environment.NewLine + " |_|  |_|\\___|_| |_|\\__,_| |_____/ \\__, |___/\\__\\___|_| |_| |_|" +
-                Environment.NewLine + "                                    __/ |    " +
-                Environment.NewLine + "                                   |___/             ";
-
+        {   
+            const string serverAddress = "127.0.0.1"; // IP-адрес сервера
+            const int serverPort = 8001; // Порт сервера
+            var tcpClient = new TcpClientHandler(serverAddress, serverPort);
+            var gameService = new GameService(tcpClient);
+            var gameUi = new GameUI(gameService);
+            
+            string headerText = "  _   _                                         " +
+                Environment.NewLine + " | | | |                                        " +
+                Environment.NewLine + " | |_| | __ _ _ __   __ _ _ __ ___   __ _ _ __ " +
+                Environment.NewLine + " |  _  |/ _` | '_ \\ / _` | '_ ` _ \\ / _` | '_ \\" +
+                Environment.NewLine + " | | | | (_| | | | | (_| | | | | | | (_| | | | |" +
+                Environment.NewLine + " \\_| |_/\\__,_|_| |_|\\__, |_| |_| |_|\\__,_|_| |_|" +
+                Environment.NewLine + "                     __/ |                     " +
+                Environment.NewLine + "                    |___/                      ";
 
             Console.Clear();
 
-            // Setup the menu
-            ConsoleMenu mainMenu = new ConsoleMenu();
-
-            ConsoleMenu subMenu1 = new ConsoleMenu("==>");
-            subMenu1.SubTitle = "---------------- Secret Menu -----------------";
-            subMenu1.addMenuItem(0, "backToMain", subMenu1.hideMenu);
-            subMenu1.ParentMenu = mainMenu;
-
+            // Создаем основное меню
+            ConsoleMenu mainMenu = new ConsoleMenu("==>");
             mainMenu.Header = headerText;
-            subMenu1.Header = mainMenu.Header;
+            mainMenu.SubTitle = "------------------ Hangman ---------------------";
 
-            mainMenu.SubTitle = "-------------------- Menu ----------------------";
-            mainMenu.addMenuItem(0, "Hello World!", HelloWorld);
-            mainMenu.addMenuItem(1, "Secret Menu", subMenu1.showMenu);
-            mainMenu.addMenuItem(2, "Exit", Exit);
-            // Display the menu
+            // Добавляем пункты меню
+            mainMenu.addMenuItem(0, "Create New Room", gameUi.CreateRoom);
+            mainMenu.addMenuItem(1, "Start New Game", gameUi.Start);
+            mainMenu.addMenuItem(2, "How to Play", ShowRules);
+            mainMenu.addMenuItem(3, "Exit", Exit);
+
+            // Отображаем меню
             mainMenu.showMenu();
-
         }
 
-
+        // Функция выхода
         public static void Exit()
         {
+            Console.WriteLine("Thanks for playing!");
             Environment.Exit(0);
         }
-
-        public static void HelloWorld()
+        
+        // Функция отображения правил игры
+        public static void ShowRules()
         {
-            Console.WriteLine("Hello World!");
+            Console.Clear();
+            Console.WriteLine("How to Play Hangman:");
+            Console.WriteLine("1. Guess the word by suggesting letters.");
+            Console.WriteLine("2. You have a limited number of attempts.");
+            Console.WriteLine("3. Each incorrect guess reveals a part of the hangman.");
+            Console.WriteLine("4. If the hangman is completed, you lose.");
+            Console.WriteLine("5. Guess the word before running out of attempts!");
+            Console.WriteLine("\nPress any key to return to the main menu.");
             Console.ReadKey(true);
         }
     }

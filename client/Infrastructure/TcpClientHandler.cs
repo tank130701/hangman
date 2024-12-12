@@ -1,10 +1,8 @@
-using System;
-using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 
-namespace HangmanClient.Infrastructure
+namespace client.Infrastructure
 {
     /// <summary>
     /// Класс для работы с TCP-сервером, включая отправку и получение JSON-сообщений.
@@ -31,13 +29,13 @@ namespace HangmanClient.Infrastructure
         /// Отправляет объект в формате JSON на сервер.
         /// </summary>
         /// <param name="message">Объект для отправки.</param>
-        public void SendMessage(object message)
+        public void SendRequest<T>(T request)
         {
             try
             {
-                string jsonMessage = JsonSerializer.Serialize(message);
-                _writer.WriteLine(jsonMessage);
-                Console.WriteLine($"Sent: {jsonMessage}");
+                string jsonRequest = JsonSerializer.Serialize(request);
+                _writer.WriteLine(jsonRequest);
+                Console.WriteLine($"Sent: {jsonRequest}");
             }
             catch (Exception ex)
             {
