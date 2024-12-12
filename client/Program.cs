@@ -91,9 +91,22 @@ class HangmanMockProtobufClient
 
     static void SimulateGamePlay(NetworkStream stream)
     {
+        string[] hangmanStages = new string[]
+        {
+        "\n\n\n\n\n\n",
+        "\n\n\n\n\n\n_____",
+        "\n |\n |\n |\n |\n_|___",
+        "_____\n |   |\n |\n |\n |\n_|___",
+        "_____\n |   |\n |   O\n |\n |\n_|___",
+        "_____\n |   |\n |   O\n |  /|\\\n |\n_|___",
+        "_____\n |   |\n |   O\n |  /|\\\n |  / \\\n_|___"
+        };
+
         bool gameOver = false;
         while (!gameOver)
         {
+            Console.Clear();
+
             // Запрос состояния игры
             var getGameStateRequest = new GetGameStateRequest
             {
@@ -105,7 +118,20 @@ class HangmanMockProtobufClient
             SendMessage(stream, "GET_GAME_STATE", gameStatePayload);
 
             var gameStateResponse = ReadMessage<ServerResponse>(stream);
-            Console.WriteLine($"Game State: {gameStateResponse.Message}");
+
+            // Десериализация Payload в GameStateResponse
+            var gameStateData = DeserializePayload<GameStateResponse>(gameStateResponse.Payload);
+
+            // Отображение состояния игры
+            Console.WriteLine(hangmanStages[gameStateData.Attempts]);
+            Console.WriteLine($"Word: {gameStateData.Word}");
+            Console.WriteLine($"Attempts: {gameStateData.Attempts}/{gameStateData.MaxAttempts}");
+
+            if (gameStateData.Attempts >= gameStateData.MaxAttempts)
+            {
+                Console.WriteLine("Game Over! You've been hanged.");
+                break;
+            }
 
             // Угадывание буквы
             Console.Write("Enter a letter to guess: ");
@@ -122,15 +148,35 @@ class HangmanMockProtobufClient
             SendMessage(stream, "GUESS_LETTER", guessLetterPayload);
 
             var guessLetterResponse = ReadMessage<ServerResponse>(stream);
-            Console.WriteLine($"Guess Response: {guessLetterResponse.Message}");
+
+            // Десериализация GuessLetterResponse
+            var guessLetterData = DeserializePayload<GuessLetterResponse>(guessLetterResponse.Payload);
+            Console.WriteLine($"Guess Feedback: {guessLetterData.Feedback}");
+            Console.WriteLine($"Correct: {guessLetterData.IsCorrect}");
 
             // Проверяем, завершилась ли игра
-            gameOver = guessLetterResponse.Message.Contains("Game Over") || guessLetterResponse.Message.Contains("Congratulations");
+            gameOver = guessLetterData.GameOver;
+
+            if (gameOver)
+            {
+                if (guessLetterData.IsCorrect)
+                {
+                    Console.WriteLine("Congratulations! You guessed the word.");
+                }
+                else
+                {
+                    Console.WriteLine("Game Over! You've been hanged.");
+                }
+            }
         }
 
         Console.WriteLine("Game Over! Thanks for playing.");
     }
 
+    static T DeserializePayload<T>(Google.Protobuf.ByteString payload)
+    {
+        return JsonSerializer.Deserialize<T>(payload.ToStringUtf8());
+    }
     static void SendMessage(NetworkStream stream, string command, string payload)
     {
         var clientMessage = new ClientMessage

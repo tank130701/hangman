@@ -126,3 +126,9 @@ public class GuessLetterResponse
     [JsonPropertyName("feedback")]
     public string Feedback { get; set; }
 }
+
+public class GameStateResponse
+{
+    [JsonPropertyName("state")]
+    public string GameState { get; set; }
+}

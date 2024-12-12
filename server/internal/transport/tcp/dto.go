@@ -40,7 +40,7 @@ type GuessLetterResponse struct {
 	Feedback       string `json:"feedback"`
 }
 
-type GetGameStateDTO struct {
+type GetGameStateRequest struct {
 	PlayerUsername string `json:"player_username"`
 	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`

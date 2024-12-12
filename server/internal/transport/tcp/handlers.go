@@ -3,7 +3,8 @@ package tcp
 import (
 	"encoding/json"
 	"hangman/internal/domain"
-	"hangman/pkg/tcp-server"
+	"hangman/internal/errs"
+	tcp_server "hangman/pkg/tcp-server"
 	"net"
 	"strings"
 )
@@ -27,10 +28,10 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("GET_GAME_STATE", h.HandleGetGameStateRequest)
 }
 
-func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) []byte {
+func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
 	var dto CreateRoomRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid CREATE_ROOM payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid CREATE_ROOM payload")
 	}
 
 	player := &domain.Player{
@@ -40,7 +41,7 @@ func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) []byte 
 
 	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
 	response := map[string]string{
@@ -50,15 +51,15 @@ func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) []byte 
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }
 
-func (h *Handler) HandleStartGameRequest(conn net.Conn, message []byte) []byte {
+func (h *Handler) HandleStartGameRequest(conn net.Conn, message []byte) ([]byte, error) {
 	var dto StartGameRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid START_GAME payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid START_GAME payload")
 	}
 
 	player := &domain.Player{
@@ -68,22 +69,22 @@ func (h *Handler) HandleStartGameRequest(conn net.Conn, message []byte) []byte {
 
 	err := h.RoomController.StartGame(player, dto.RoomID)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
 	response := map[string]string{"message": "Game started successfully"}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }
 
-func (h *Handler) HandleJoinRoomRequest(conn net.Conn, message []byte) []byte {
+func (h *Handler) HandleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
 	var dto JoinRoomDTO
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid JOIN_ROOM payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid JOIN_ROOM payload")
 	}
 
 	player := &domain.Player{
@@ -93,19 +94,19 @@ func (h *Handler) HandleJoinRoomRequest(conn net.Conn, message []byte) []byte {
 
 	room, err := h.RoomController.JoinRoom(player, dto.RoomID, dto.Password)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 	responseBytes, err := json.Marshal(room)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }
 
-func (h *Handler) HandleDeleteRoomRequest(conn net.Conn, message []byte) []byte {
+func (h *Handler) HandleDeleteRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
 	var dto DeleteRoomDTO
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid DELETE_ROOM payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid DELETE_ROOM payload")
 	}
 
 	player := &domain.Player{
@@ -115,26 +116,26 @@ func (h *Handler) HandleDeleteRoomRequest(conn net.Conn, message []byte) []byte 
 
 	err := h.RoomController.DeleteRoom(player, dto.RoomID)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 	response := map[string]string{"message": "Room deleted successfully"}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }
 
-func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) []byte {
+func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) ([]byte, error) {
 	var dto GuessLetterRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid GUESS_LETTER payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid GUESS_LETTER payload")
 	}
 
 	// Проверяем длину введённого символа
 	if len(dto.Letter) != 1 {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid letter input. Please provide a single character.")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid letter input. Please provide a single character.")
 	}
 
 	player := &domain.Player{
@@ -144,7 +145,7 @@ func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) []byte
 
 	isCorrect, feedback, err := h.RoomController.MakeGuess(player, dto.RoomID, []rune(dto.Letter)[0])
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
 	// Формируем успешный ответ
@@ -163,24 +164,24 @@ func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) []byte
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }
 
-func (h *Handler) HandleGetGameStateRequest(conn net.Conn, message []byte) []byte {
-	var dto GetGameStateDTO
+func (h *Handler) HandleGetGameStateRequest(conn net.Conn, message []byte) ([]byte, error) {
+	var dto GetGameStateRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInvalidJSON, "Invalid GET_GAME_STATE payload")
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid GET_GAME_STATE payload")
 	}
 	gameState, err := h.RoomController.GetGameState(dto.RoomID)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 	response := map[string]string{"state": string(*gameState)}
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	return responseBytes
+	return responseBytes, nil
 }

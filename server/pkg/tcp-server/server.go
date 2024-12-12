@@ -3,6 +3,7 @@ package tcp_server
 import (
 	"encoding/binary"
 	"fmt"
+	"hangman/internal/errs"
 	"net"
 
 	"google.golang.org/protobuf/proto"
@@ -33,8 +34,6 @@ func New(address string, logger ILogger) *Server {
 
 // RegisterHandler registers a handler for a specific command.
 func (s *Server) RegisterHandler(command string, handler HandleFunc) {
-	//s.mu.Lock()
-	//defer s.mu.Unlock()
 	s.handlers[command] = handler
 }
 
@@ -68,7 +67,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		var response []byte
 		message, err := readMessage(conn)
 		if err != nil {
-			response = CreateErrorResponse(ErrCodeInternalServerError, err.Error())
+			response = CreateErrorResponse(errs.ErrCodeInternalServerError, err.Error())
 		} else {
 			response = s.processMessage(message, conn)
 		}
@@ -128,8 +127,17 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	}
 
 	// Обрабатываем полезную нагрузку
-	responsePayload := handler(conn, clientMsg.Payload)
+	responsePayload, err := handler(conn, clientMsg.Payload)
+	if err != nil {
+		if customErr, ok := err.(*errs.Error); ok {
+			s.logger.Error(fmt.Sprintf("Error in handler: %v", customErr))
+			return CreateErrorResponse(customErr.Code, customErr.Message)
+		}
 
+		// Если ошибка неизвестного типа, возвращаем стандартный код
+		s.logger.Error(fmt.Sprintf("Unexpected error: %v", err))
+		return CreateErrorResponse(5000, "Internal server error")
+	}
 	// Создаем ответ
 	serverResp := &ServerResponse{
 		StatusCode: 2000,
