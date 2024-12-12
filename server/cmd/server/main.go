@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"hangman/internal/repository"
 	"hangman/internal/service"
 	"hangman/internal/transport/tcp"
@@ -10,7 +11,7 @@ import (
 
 func main() {
 	// Логгер
-	logger := utils.Logger
+	logger := utils.NewCustomLogger()
 	// Репозитории
 	roomRepo := repository.NewRoomRepository()
 	playerRepo := repository.NewPlayerRepository()
@@ -25,7 +26,7 @@ func main() {
 	// Запускаем процесс очистки неактивных комнат
 	go func() {
 		timeout := 300 // Таймаут удаления комнат в секундах
-		logger.Printf("Room cleanup process started with timeout: %d seconds", timeout)
+		logger.Info(fmt.Sprintf("Room cleanup process started with timeout: %d seconds", timeout))
 		roomController.CleanupRooms(timeout)
 	}()
 
@@ -35,6 +36,6 @@ func main() {
 	handler.InitRoutes(srv)
 
 	if err := srv.Start(); err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
+		logger.Error(fmt.Sprintf("Failed to start server: %v", err))
 	}
 }

@@ -52,7 +52,7 @@ func (h *Handler) HandleCreateRoomRequest(conn net.Conn, message []byte) []byte 
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }
 
 func (h *Handler) HandleStartGameRequest(conn net.Conn, message []byte) []byte {
@@ -77,7 +77,7 @@ func (h *Handler) HandleStartGameRequest(conn net.Conn, message []byte) []byte {
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }
 
 func (h *Handler) HandleJoinRoomRequest(conn net.Conn, message []byte) []byte {
@@ -99,7 +99,7 @@ func (h *Handler) HandleJoinRoomRequest(conn net.Conn, message []byte) []byte {
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }
 
 func (h *Handler) HandleDeleteRoomRequest(conn net.Conn, message []byte) []byte {
@@ -123,7 +123,7 @@ func (h *Handler) HandleDeleteRoomRequest(conn net.Conn, message []byte) []byte 
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }
 
 func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) []byte {
@@ -165,7 +165,7 @@ func (h *Handler) HandleGuessLetterRequest(conn net.Conn, message []byte) []byte
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }
 
 func (h *Handler) HandleGetGameStateRequest(conn net.Conn, message []byte) []byte {
@@ -182,5 +182,5 @@ func (h *Handler) HandleGetGameStateRequest(conn net.Conn, message []byte) []byt
 	if err != nil {
 		return tcp_server.CreateErrorResponse(tcp_server.ErrCodeInternalServerError, err.Error())
 	}
-	return tcp_server.CreateSuccessfulResponse(responseBytes)
+	return responseBytes
 }

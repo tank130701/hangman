@@ -1,22 +1,29 @@
 package tcp_server
 
 import (
-	"bufio"
-	"encoding/json"
-	"log"
+	"encoding/binary"
+	"fmt"
 	"net"
-	"strings"
+
+	"google.golang.org/protobuf/proto"
 )
+
+type ILogger interface {
+	Info(msg string)
+	Warning(msg string)
+	Error(msg string)
+	Debug(msg string)
+}
 
 type Server struct {
 	address  string
 	handlers map[string]HandleFunc
 
-	logger *log.Logger
+	logger ILogger
 }
 
 // New создает новый сервер
-func New(address string, logger *log.Logger) *Server {
+func New(address string, logger ILogger) *Server {
 	return &Server{
 		address:  address,
 		handlers: make(map[string]HandleFunc),
@@ -39,11 +46,11 @@ func (s *Server) Start() error {
 	}
 	defer listener.Close()
 
-	s.logger.Println("Server is listening on", s.address)
+	s.logger.Info(fmt.Sprintf("Server is listening on: %s", s.address))
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			s.logger.Println("Failed to accept connection:", err)
+			s.logger.Error(fmt.Sprintf("Failed to accept connection:%v", err))
 			continue
 		}
 
@@ -55,56 +62,98 @@ func (s *Server) Start() error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	clientAddr := conn.RemoteAddr().String()
-	s.logger.Printf("New connection from %s", clientAddr)
-
-	reader := bufio.NewReader(conn)
+	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
 
 	for {
 		var response []byte
-		// conn.Write([]byte("Enter a JSON command:\n"))
-		message, err := reader.ReadString('\n')
+		message, err := readMessage(conn)
 		if err != nil {
 			response = CreateErrorResponse(ErrCodeInternalServerError, err.Error())
 		} else {
-			response = s.processMessage([]byte(strings.TrimSpace(message)), conn)
+			response = s.processMessage(message, conn)
 		}
-		conn.Write(response)
-		conn.Write([]byte("\n"))
+		writeMessage(conn, response)
 	}
 }
 
-// processMessage обрабатывает JSON-команды
+func readMessage(conn net.Conn) ([]byte, error) {
+	// Чтение заголовка (4 байта)
+	header := make([]byte, 4)
+	if _, err := conn.Read(header); err != nil {
+		return nil, err
+	}
+
+	// Преобразование заголовка в длину сообщения
+	messageLength := int(binary.BigEndian.Uint32(header))
+
+	// Чтение тела сообщения
+	message := make([]byte, messageLength)
+	if _, err := conn.Read(message); err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+// writeMessage отправляет сообщение с заголовком длины
+func writeMessage(conn net.Conn, message []byte) error {
+	header := make([]byte, 4)
+	binary.BigEndian.PutUint32(header, uint32(len(message)))
+
+	if _, err := conn.Write(header); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(message); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
-	// Логируем входящий запрос
-	s.logger.Printf("Received message: %s", string(message))
-
-	var request BaseRequest
-	if err := json.Unmarshal(message, &request); err != nil {
-		errMessage := "Invalid JSON format"
-		s.logger.Printf("Error parsing request: %v", err)
-		return CreateErrorResponse(4000, errMessage)
+	// Парсим сообщение клиента
+	var clientMsg ClientMessage
+	if err := proto.Unmarshal(message, &clientMsg); err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to parse Protobuf message: %v", err))
+		return CreateErrorResponse(4000, "Invalid Protobuf format")
 	}
 
-	var response []byte
+	s.logger.Debug(fmt.Sprintf("Request: Command: %s, Payload: %s", clientMsg.Command, string(clientMsg.Payload)))
 
-	handler, exists := s.handlers[request.Command]
-
-	if exists {
-		response = handler(conn, message)
-	} else {
-		unknownCommandMessage := "Unknown command"
-		s.logger.Printf("No handler for command: %s", request.Command)
-		return CreateErrorResponse(ErrCodeUnknownCommand, unknownCommandMessage)
+	// Ищем обработчик для команды
+	handler, exists := s.handlers[clientMsg.Command]
+	if !exists {
+		s.logger.Error(fmt.Sprintf("Unknown command: %s", clientMsg.Command))
+		return CreateErrorResponse(4004, "Unknown command")
 	}
 
-	// Логируем ответ
-	var debugData map[string]interface{}
-	if err := json.Unmarshal(response, &debugData); err != nil {
-		s.logger.Printf("Failed to parse response JSON: %v", err)
-	} else {
-		prettyResponse, _ := json.MarshalIndent(debugData, "", "  ") // Форматирование JSON для читаемости
-		s.logger.Printf("Response JSON:\n%s", prettyResponse)
+	// Обрабатываем полезную нагрузку
+	responsePayload := handler(conn, clientMsg.Payload)
+
+	// Создаем ответ
+	serverResp := &ServerResponse{
+		StatusCode: 2000,
+		Message:    "Success",
+		Payload:    responsePayload,
 	}
 
-	return response
+	// Сериализация ответа
+	respBytes, err := proto.Marshal(serverResp)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to serialize response: %v", err))
+		return CreateErrorResponse(5000, "Internal server error")
+	}
+	s.logger.Debug(fmt.Sprintf("Response: %s, Payload: %s", serverResp, responsePayload))
+	return respBytes
+}
+
+// CreateErrorResponse формирует Protobuf-ответ с ошибкой
+func CreateErrorResponse(code int32, msg string) []byte {
+	serverResp := &ServerResponse{
+		StatusCode: code,
+		Message:    msg,
+	}
+
+	respBytes, _ := proto.Marshal(serverResp)
+	return respBytes
 }
