@@ -40,7 +40,7 @@ func (l *Logger) Error(msg string) {
 	l.logger.Println(Red + "ERROR: " + msg + Reset)
 }
 
-// Debug логирует сообщение уровня DEBUG с синим цветом
+// Debug логирует сообщение уровня DEBUG с белым цветом
 func (l *Logger) Debug(msg string) {
 	l.logger.Println(White + "DEBUG: " + msg + Reset)
 }

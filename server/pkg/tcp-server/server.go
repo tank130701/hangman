@@ -2,6 +2,7 @@ package tcp_server
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hangman/internal/errs"
 	"net"
@@ -129,7 +130,8 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	// Обрабатываем полезную нагрузку
 	responsePayload, err := handler(conn, clientMsg.Payload)
 	if err != nil {
-		if customErr, ok := err.(*errs.Error); ok {
+		var customErr *errs.Error
+		if errors.As(err, &customErr) {
 			s.logger.Error(fmt.Sprintf("Error in handler: %v", customErr))
 			return CreateErrorResponse(customErr.Code, customErr.Message)
 		}
