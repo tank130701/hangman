@@ -46,6 +46,12 @@ type GetGameStateRequest struct {
 	RoomID         string `json:"room_id"`
 }
 
+type PlayerGameState struct {
+	WordProgress string `json:"word_progress"` // Прогресс текущего слова
+	AttemptsLeft int    `json:"attempts_left"` // Остаток попыток
+	IsGameOver   bool   `json:"is_game_over"`  // Указатель на завершение игры
+}
+
 type GetGameStateResponse struct {
-	GameState string `json:"game_state"`
+	Players map[string]*PlayerGameState `json:"players"` // Карта состояний игроков
 }

@@ -26,7 +26,7 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("DELETE_ROOM", h.handleDeleteRoomRequest)
 	srv.RegisterHandler("GUESS_LETTER", h.handleGuessLetterRequest)
 	srv.RegisterHandler("GET_GAME_STATE", h.handleGetGameStateRequest)
-	srv.RegisterHandler("GET_ALL_ROOMS", h.HandleGetAllRoomsRequest)
+	srv.RegisterHandler("GET_ALL_ROOMS", h.handleGetAllRoomsRequest)
 }
 
 func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
@@ -175,19 +175,38 @@ func (h *Handler) handleGetGameStateRequest(conn net.Conn, message []byte) ([]by
 	if err := json.Unmarshal(message, &dto); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid GET_GAME_STATE payload")
 	}
-	gameState, err := h.RoomController.GetGameState(dto.RoomID)
+
+	// Получаем состояния игры для всех игроков
+	playerGameStates, err := h.RoomController.GetGameState(dto.RoomID)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	response := map[string]string{"state": string(*gameState)}
+
+	// Преобразуем данные из map[string]*GameState в map[string]*PlayerGameState
+	players := make(map[string]*PlayerGameState)
+	for username, state := range playerGameStates {
+		players[username] = &PlayerGameState{
+			WordProgress: state.WordProgress,
+			AttemptsLeft: state.AttemptsLeft,
+			IsGameOver:   state.IsGameOver,
+		}
+	}
+
+	// Формируем ответ
+	response := GetGameStateResponse{
+		Players: players,
+	}
+
+	// Сериализация ответа в JSON
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to serialize game state")
 	}
+
 	return responseBytes, nil
 }
 
-func (h *Handler) HandleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byte, error) {
+func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byte, error) {
 	rooms, err := h.RoomController.GetAllRooms()
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to fetch rooms")

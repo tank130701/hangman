@@ -18,7 +18,7 @@ type IRoomController interface {
 	CleanupRooms(timeoutSeconds int)
 	StartGame(player *Player, roomID string) error
 	MakeGuess(player *Player, roomID string, letter rune) (bool, string, error)
-	GetGameState(roomID string) (*GameState, error)
+	GetGameState(roomID string) (map[string]*GameState, error)
 	GetAllRooms() ([]*Room, error)
 }
 
@@ -33,5 +33,5 @@ type IPlayerRepository interface {
 type IGameService interface {
 	StartGame(room *Room) error
 	MakeGuess(room *Room, player *Player, letter rune) (bool, string, error)
-	GetGameState(room *Room) (*GameState, error)
+	GetGameState(room *Room) (map[string]*GameState, error)
 }

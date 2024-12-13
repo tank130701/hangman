@@ -124,9 +124,6 @@ public class GuessLetterRequest
     [JsonPropertyName("room_id")]
     public string RoomID { get; set; }
 
-    [JsonPropertyName("player_name")]
-    public string PlayerName { get; set; }
-
     [JsonPropertyName("letter")]
     public string Letter { get; set; }
 }
@@ -147,8 +144,21 @@ public class GuessLetterResponse
     public string Feedback { get; set; }
 }
 
-public class GameStateResponse
+
+public class PlayerGameState
 {
-    [JsonPropertyName("state")]
-    public string GameState { get; set; }
+    [JsonPropertyName("word_progress")]
+    public string WordProgress { get; set; } // Текущее состояние слова (с угаданными буквами)
+
+    [JsonPropertyName("attempts_left")]
+    public int AttemptsLeft { get; set; } // Остаток попыток
+
+    [JsonPropertyName("is_game_over")]
+    public bool IsGameOver { get; set; } // Статус завершения игры
+}
+
+public class RoomGameStateResponse
+{
+    [JsonPropertyName("players")]
+    public Dictionary<string, PlayerGameState> Players { get; set; } // Карта состояний игроков
 }

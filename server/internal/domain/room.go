@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+type roomState string
+
+const (
+	Waiting    roomState = "WaitingForPlayers"
+	InProgress roomState = "InProgress"
+	GameOver   roomState = "GameOver"
+)
+
 type Room struct {
 	ID           string
 	Owner        *Player
@@ -14,6 +22,7 @@ type Room struct {
 	MaxPlayers   int
 	Password     string
 	StateManager *GameStateManager
+	RoomState    roomState
 	mu           sync.Mutex
 }
 

@@ -9,23 +9,22 @@ import (
 
 type RoomController struct {
 	roomRepo    domain.IRoomRepository
-	playerRepo  domain.IPlayerRepository
 	gameService domain.IGameService
 }
 
-func NewRoomController(roomRepo domain.IRoomRepository, playerRepo domain.IPlayerRepository, gameService domain.IGameService) *RoomController {
+func NewRoomController(roomRepo domain.IRoomRepository, gameService domain.IGameService) *RoomController {
 	return &RoomController{
 		roomRepo:    roomRepo,
-		playerRepo:  playerRepo,
 		gameService: gameService,
 	}
 }
 
 func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password string) (*domain.Room, error) {
 	room := &domain.Room{
-		ID:           roomID,
-		Owner:        player,
-		PlayersRepo:  repository.NewPlayerRepository(),
+		ID:          roomID,
+		Owner:       player,
+		PlayersRepo: repository.NewPlayerRepository(),
+		//StateManager: domain.NewGameStateManager(),
 		Password:     password,
 		LastActivity: time.Now(),
 		IsOpen:       true,
@@ -36,10 +35,10 @@ func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password str
 		return nil, err
 	}
 
-	// if err := rc.playerRepo.AddPlayer(player); err != nil {
-	// 	err = rc.roomRepo.RemoveRoom(roomID)
-	// 	return nil, err
-	// }
+	//err := room.PlayersRepo.AddPlayer(player)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	return room, nil
 }
@@ -54,8 +53,9 @@ func (rc *RoomController) JoinRoom(player *domain.Player, roomID, password strin
 	if room.Password != "" && room.Password != password {
 		return nil, errors.New("incorrect password")
 	}
-	// Добавляем игрока в глобальный репозиторий
-	if err := rc.playerRepo.AddPlayer(player); err != nil {
+
+	err = room.PlayersRepo.AddPlayer(player)
+	if err != nil {
 		return nil, err
 	}
 
@@ -85,10 +85,9 @@ func (rc *RoomController) DeleteRoom(player *domain.Player, roomID string) error
 	if room.Owner.Username != player.Username {
 		return errors.New("only the owner can delete the room")
 	}
-
 	// Удаляем всех игроков из комнаты
 	for _, p := range room.PlayersRepo.GetAllPlayers() {
-		err := rc.playerRepo.RemovePlayer(p.Username)
+		err := room.PlayersRepo.RemovePlayer(p.Username)
 		if err != nil {
 			return err
 		} //TODO: check this
@@ -138,7 +137,7 @@ func (rc *RoomController) MakeGuess(player *domain.Player, roomID string, letter
 	return rc.gameService.MakeGuess(room, player, letter)
 }
 
-func (rc *RoomController) GetGameState(roomID string) (*domain.GameState, error) {
+func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameState, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return nil, err

@@ -14,11 +14,10 @@ func main() {
 	logger := utils.NewCustomLogger()
 	// Репозитории
 	roomRepo := repository.NewRoomRepository()
-	playerRepo := repository.NewPlayerRepository()
 
 	// Сервисы
 	gameService := service.NewGameService()
-	roomController := service.NewRoomController(roomRepo, playerRepo, gameService)
+	roomController := service.NewRoomController(roomRepo, gameService)
 
 	// Обработчики
 	handler := tcp.NewHandler(roomController)
