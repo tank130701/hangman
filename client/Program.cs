@@ -22,6 +22,9 @@ class HangmanMockProtobufClient
                 // 1. Создание комнаты
                 SimulateCreateRoom(stream);
 
+                // 3. Запрос всех комнат
+                SimulateGetAllRooms(stream);
+
                 // 2. Присоединение к комнате
                 SimulateJoinRoom(stream);
 
@@ -56,6 +59,24 @@ class HangmanMockProtobufClient
 
         var response = ReadMessage<ServerResponse>(stream);
         Console.WriteLine($"Server Response (Create Room): {response.Message}");
+    }
+
+    static void SimulateGetAllRooms(NetworkStream stream)
+    {
+        var getAllRoomsRequest = new { Command = "GET_ALL_ROOMS" }; // Простая структура для команды
+        var getAllRoomsPayload = SerializeToJson(getAllRoomsRequest);
+        SendMessage(stream, "GET_ALL_ROOMS", getAllRoomsPayload);
+
+        var response = ReadMessage<ServerResponse>(stream);
+
+        // Десериализация списка комнат
+        var rooms = DeserializePayload<List<RoomDTO>>(response.Payload);
+
+        Console.WriteLine("Available Rooms:");
+        foreach (var room in rooms)
+        {
+            Console.WriteLine($"Room ID: {room.Id}, Owner: {room.Owner}, Players: {room.PlayersCount}/{room.MaxPlayers}, IsOpen: {room.IsOpen}, LastActivity: {room.LastActivity}");
+        }
     }
 
     static void SimulateJoinRoom(NetworkStream stream)
@@ -123,15 +144,15 @@ class HangmanMockProtobufClient
             var gameStateData = DeserializePayload<GameStateResponse>(gameStateResponse.Payload);
 
             // Отображение состояния игры
-            Console.WriteLine(hangmanStages[gameStateData.Attempts]);
-            Console.WriteLine($"Word: {gameStateData.Word}");
-            Console.WriteLine($"Attempts: {gameStateData.Attempts}/{gameStateData.MaxAttempts}");
+            // Console.WriteLine(hangmanStages[gameStateData.Attempts]);
+            // Console.WriteLine($"Word: {gameStateData.Word}");
+            // Console.WriteLine($"Attempts: {gameStateData.Attempts}/{gameStateData.MaxAttempts}");
 
-            if (gameStateData.Attempts >= gameStateData.MaxAttempts)
-            {
-                Console.WriteLine("Game Over! You've been hanged.");
-                break;
-            }
+            // if (gameStateData.Attempts >= gameStateData.MaxAttempts)
+            // {
+            //     Console.WriteLine("Game Over! You've been hanged.");
+            //     break;
+            // }
 
             // Угадывание буквы
             Console.Write("Enter a letter to guess: ");

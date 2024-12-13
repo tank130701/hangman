@@ -19,6 +19,7 @@ type IRoomController interface {
 	StartGame(player *Player, roomID string) error
 	MakeGuess(player *Player, roomID string, letter rune) (bool, string, error)
 	GetGameState(roomID string) (*GameState, error)
+	GetAllRooms() ([]*Room, error)
 }
 
 type IPlayerRepository interface {
@@ -26,6 +27,7 @@ type IPlayerRepository interface {
 	RemovePlayer(playerName string) error
 	GetPlayerByName(playerName string) (*Player, error)
 	GetAllPlayers() []*Player
+	GetPlayerCount() int
 }
 
 type IGameService interface {

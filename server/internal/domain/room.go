@@ -8,7 +8,7 @@ import (
 type Room struct {
 	ID           string
 	Owner        *Player
-	Players      []*Player
+	PlayersRepo  IPlayerRepository
 	LastActivity time.Time
 	IsOpen       bool
 	MaxPlayers   int

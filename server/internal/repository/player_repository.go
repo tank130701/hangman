@@ -64,3 +64,10 @@ func (r *InMemoryPlayerRepository) GetAllPlayers() []*domain.Player {
 
 	return players
 }
+
+func (r *InMemoryPlayerRepository) GetPlayerCount() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return len(r.players)
+}
