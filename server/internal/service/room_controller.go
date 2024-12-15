@@ -19,13 +19,14 @@ func NewRoomController(roomRepo domain.IRoomRepository, gameService domain.IGame
 	}
 }
 
-func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password string) (*domain.Room, error) {
+func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password, difficulty string) (*domain.Room, error) {
 	room := &domain.Room{
 		ID:          roomID,
 		Owner:       player,
 		PlayersRepo: repository.NewPlayerRepository(),
 		//StateManager: domain.NewGameStateManager(),
 		Password:     password,
+		Difficulty:   difficulty,
 		LastActivity: time.Now(),
 		IsOpen:       true,
 		MaxPlayers:   5,

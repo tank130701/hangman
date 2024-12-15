@@ -3,12 +3,17 @@ package service
 import (
 	"errors"
 	"hangman/internal/domain"
+	"hangman/internal/repository"
 )
 
-type GameServiceImpl struct{}
+type GameServiceImpl struct {
+	wordsRepo *repository.WordsRepository
+}
 
-func NewGameService() domain.IGameService {
-	return &GameServiceImpl{}
+func NewGameService(repo *repository.WordsRepository) domain.IGameService {
+	return &GameServiceImpl{
+		wordsRepo: repo,
+	}
 }
 
 // StartGame запускает игру
@@ -21,7 +26,12 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 	}
 
 	for _, player := range room.PlayersRepo.GetAllPlayers() {
-		room.StateManager.AddGame("golang", domain.PlayerUsername(player.Username), 7)
+		word, err := gs.wordsRepo.GetRandomWord("test") //TODO: get category from room
+		if err != nil {
+			return err
+		}
+		attemptsCount := gs.wordsRepo.GetAttempts(word, room.Difficulty)
+		room.StateManager.AddGame(word, domain.PlayerUsername(player.Username), attemptsCount)
 	}
 
 	return nil

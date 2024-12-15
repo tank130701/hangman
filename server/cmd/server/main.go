@@ -7,16 +7,21 @@ import (
 	"hangman/internal/transport/tcp"
 	"hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
+	"os"
 )
 
 func main() {
 	// Логгер
-	logger := utils.NewCustomLogger()
+	logger := utils.NewCustomLogger(utils.LevelDebug)
 	// Репозитории
 	roomRepo := repository.NewRoomRepository()
+	wordsRepo, err := repository.NewWordsRepository("../assets" + string(os.PathSeparator) + "words.json")
+	if err != nil {
+		logger.Fatal(fmt.Sprintf("Failed to init words repo: %v", err))
+	}
 
 	// Сервисы
-	gameService := service.NewGameService()
+	gameService := service.NewGameService(wordsRepo)
 	roomController := service.NewRoomController(roomRepo, gameService)
 
 	// Обработчики

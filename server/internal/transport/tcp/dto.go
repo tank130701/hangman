@@ -5,6 +5,7 @@ type CreateRoomRequest struct {
 	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 	Password       string `json:"password"`
+	Difficulty     string `json:"difficulty"`
 }
 
 type StartGameRequest struct {
@@ -13,14 +14,14 @@ type StartGameRequest struct {
 	RoomID         string `json:"room_id"`
 }
 
-type JoinRoomDTO struct {
+type JoinRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
 	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 	Password       string `json:"password"`
 }
 
-type DeleteRoomDTO struct {
+type DeleteRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
 	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
@@ -46,12 +47,12 @@ type GetGameStateRequest struct {
 	RoomID         string `json:"room_id"`
 }
 
-type PlayerGameState struct {
+type PlayerGameStateDTO struct {
 	WordProgress string `json:"word_progress"` // Прогресс текущего слова
 	AttemptsLeft int    `json:"attempts_left"` // Остаток попыток
 	IsGameOver   bool   `json:"is_game_over"`  // Указатель на завершение игры
 }
 
 type GetGameStateResponse struct {
-	Players map[string]*PlayerGameState `json:"players"` // Карта состояний игроков
+	Players map[string]*PlayerGameStateDTO `json:"players"` // Карта состояний игроков
 }

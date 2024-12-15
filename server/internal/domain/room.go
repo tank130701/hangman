@@ -21,6 +21,7 @@ type Room struct {
 	IsOpen       bool
 	MaxPlayers   int
 	Password     string
+	Difficulty   string
 	StateManager *GameStateManager
 	RoomState    roomState
 	mu           sync.Mutex

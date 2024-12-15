@@ -117,7 +117,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 		s.logger.Error(fmt.Sprintf("Failed to parse Protobuf message: %v", err))
 		return CreateErrorResponse(4000, "Invalid Protobuf format")
 	}
-
+	s.logger.Info(fmt.Sprintf("Request: Command: %s, PayloadВize: %d bytes", clientMsg.Command, len(clientMsg.Payload)))
 	s.logger.Debug(fmt.Sprintf("Request: Command: %s, Payload: %s", clientMsg.Command, string(clientMsg.Payload)))
 
 	// Ищем обработчик для команды

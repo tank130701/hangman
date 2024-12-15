@@ -40,7 +40,7 @@ func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte
 		Conn:     conn,
 	}
 
-	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password)
+	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password, dto.Difficulty)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
@@ -83,7 +83,7 @@ func (h *Handler) handleStartGameRequest(conn net.Conn, message []byte) ([]byte,
 }
 
 func (h *Handler) handleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto JoinRoomDTO
+	var dto JoinRoomRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid JOIN_ROOM payload")
 	}
@@ -105,7 +105,7 @@ func (h *Handler) handleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, 
 }
 
 func (h *Handler) handleDeleteRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto DeleteRoomDTO
+	var dto DeleteRoomRequest
 	if err := json.Unmarshal(message, &dto); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid DELETE_ROOM payload")
 	}
@@ -182,10 +182,10 @@ func (h *Handler) handleGetGameStateRequest(conn net.Conn, message []byte) ([]by
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
-	// Преобразуем данные из map[string]*GameState в map[string]*PlayerGameState
-	players := make(map[string]*PlayerGameState)
+	// Преобразуем данные из map[string]*GameState в map[string]*PlayerGameStateDTO
+	players := make(map[string]*PlayerGameStateDTO)
 	for username, state := range playerGameStates {
-		players[username] = &PlayerGameState{
+		players[username] = &PlayerGameStateDTO{
 			WordProgress: state.WordProgress,
 			AttemptsLeft: state.AttemptsLeft,
 			IsGameOver:   state.IsGameOver,
