@@ -40,7 +40,7 @@ func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte
 		Conn:     conn,
 	}
 
-	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password, dto.Difficulty)
+	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password, dto.Category, dto.Difficulty)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}

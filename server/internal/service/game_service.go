@@ -26,7 +26,7 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 	}
 
 	for _, player := range room.PlayersRepo.GetAllPlayers() {
-		word, err := gs.wordsRepo.GetRandomWord("test") //TODO: get category from room
+		word, err := gs.wordsRepo.GetRandomWord(room.Category)
 		if err != nil {
 			return err
 		}

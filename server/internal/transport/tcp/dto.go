@@ -5,6 +5,7 @@ type CreateRoomRequest struct {
 	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 	Password       string `json:"password"`
+	Category       string `json:"category"`
 	Difficulty     string `json:"difficulty"`
 }
 

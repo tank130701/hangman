@@ -21,6 +21,7 @@ type Room struct {
 	IsOpen       bool
 	MaxPlayers   int
 	Password     string
+	Category     string
 	Difficulty   string
 	StateManager *GameStateManager
 	RoomState    roomState
