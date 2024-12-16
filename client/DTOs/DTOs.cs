@@ -66,6 +66,12 @@ public class CreateRoomRequest
     [JsonPropertyName("room_id")]
     public string RoomID { get; set; }
 
+    [JsonPropertyName("category")]
+    public string Category { get; set; }
+
+    [JsonPropertyName("difficulty")]
+    public string Difficulty { get; set; }
+
     [JsonPropertyName("password")]
     public string Password { get; set; }
 }

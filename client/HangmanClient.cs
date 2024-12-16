@@ -14,7 +14,9 @@ class HangmanClient
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom",
             Password = "12345",
-            Command = "CREATE_ROOM"
+            Command = "CREATE_ROOM",
+            Difficulty = "medium",
+            Category = "животные"
         };
         var createRoomPayload = SerializeToJson(createRoomRequest);
         SendMessage(stream, "CREATE_ROOM", createRoomPayload);
@@ -85,7 +87,7 @@ public static void SimulateGamePlay(NetworkStream stream)
         "_____\n |   |\n |   O\n |  /|\\\n |  / \\\n_|___"
     };
 
-    HashSet<char> availableLetters = new HashSet<char>("ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToLowerInvariant().ToCharArray());
+    HashSet<char> availableLetters = new HashSet<char>("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ".ToLowerInvariant().ToCharArray());
     HashSet<char> usedLetters = new HashSet<char>();
 
     bool gameOver = false;
@@ -97,7 +99,6 @@ public static void SimulateGamePlay(NetworkStream stream)
         // Запрос состояния игры
         var getGameStateRequest = new GetGameStateRequest
         {
-            Command = "GET_GAME_STATE",
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom"
         };

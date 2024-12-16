@@ -26,6 +26,7 @@ func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password, ca
 		PlayersRepo: repository.NewPlayerRepository(),
 		//StateManager: domain.NewGameStateManager(),
 		Password:     password,
+		Category:     category,
 		Difficulty:   difficulty,
 		LastActivity: time.Now(),
 		IsOpen:       true,
