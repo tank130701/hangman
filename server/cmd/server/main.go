@@ -40,6 +40,6 @@ func main() {
 	handler.InitRoutes(srv)
 
 	if err := srv.Start(); err != nil {
-		logger.Error(fmt.Sprintf("Failed to start server: %v", err))
+		logger.Fatal(fmt.Sprintf("Failed to start server: %v", err))
 	}
 }

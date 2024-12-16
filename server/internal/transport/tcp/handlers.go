@@ -7,6 +7,7 @@ import (
 	tcp_server "hangman/pkg/tcp-server"
 	"net"
 	"strings"
+	"unicode/utf8"
 )
 
 type Handler struct {
@@ -135,7 +136,7 @@ func (h *Handler) handleGuessLetterRequest(conn net.Conn, message []byte) ([]byt
 	}
 
 	// Проверяем длину введённого символа
-	if len(dto.Letter) != 1 {
+	if utf8.RuneCountInString(dto.Letter) != 1 {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid letter input. Please provide a single character.")
 	}
 
