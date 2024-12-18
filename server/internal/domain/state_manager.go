@@ -6,6 +6,7 @@ type GameState struct {
 	WordProgress string // Текущее состояние слова (с угаданными буквами)
 	AttemptsLeft int    // Остаток попыток
 	IsGameOver   bool   // Статус завершения игры
+	Score        int    // Текущий счет игрока
 }
 
 type GameStateManager struct {
@@ -27,22 +28,38 @@ func (gsm *GameStateManager) GetState(username PlayerUsername) GameState {
 		WordProgress: gsm.games[username].DisplayWord(),
 		AttemptsLeft: gsm.games[username].AttemptsLeft,
 		IsGameOver:   gsm.games[username].IsWordGuessed() || gsm.games[username].AttemptsLeft <= 0,
+		Score:        gsm.games[username].Score,
 	}
 }
 
 func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bool, string, error) {
-	isCorrect := gsm.games[username].UpdateGuessedWord(letter)
-	if isCorrect && gsm.games[username].IsWordGuessed() {
-		return true, "Congratulations! You guessed the word: " + gsm.games[username].Word, nil
-	}
+	game := gsm.games[username]
 
-	if !isCorrect {
-		gsm.games[username].AttemptsLeft--
-		if gsm.games[username].AttemptsLeft <= 0 {
-			return false, "Game Over! The word was: " + gsm.games[username].Word, nil
+	isCorrect := game.UpdateGuessedWord(letter)
+
+	// Правильный ответ
+	if isCorrect {
+		game.Score += 10 // Начислить очки за правильную букву
+
+		if game.IsWordGuessed() {
+			game.Score += 50 // Бонус за завершение слова
+			return true, "Congratulations! You guessed the word: " + game.Word, nil
 		}
-		return false, "Wrong guess!", nil
+
+		return true, "Correct guess!", nil
 	}
 
-	return true, "Correct guess!", nil
+	// Неправильный ответ
+	game.AttemptsLeft--
+	game.Score -= 5 // Штраф за неправильный ответ
+	if game.Score < 0 {
+		game.Score = 0 // Убедиться, что счет не становится отрицательным
+	}
+
+	// Проверить, закончились ли попытки
+	if game.AttemptsLeft <= 0 {
+		return false, "Game Over! The word was: " + game.Word, nil
+	}
+
+	return false, "Wrong guess!", nil
 }

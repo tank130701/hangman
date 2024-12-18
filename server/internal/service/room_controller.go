@@ -12,9 +12,14 @@ type RoomController struct {
 	playersRepo domain.IPlayerRepository
 }
 
-func NewRoomController(roomRepo domain.IRoomRepository, gameService domain.IGameService) *RoomController {
+func NewRoomController(
+	roomRepo domain.IRoomRepository,
+	playersRepo domain.IPlayerRepository,
+	gameService domain.IGameService,
+) *RoomController {
 	return &RoomController{
 		roomRepo:    roomRepo,
+		playersRepo: playersRepo,
 		gameService: gameService,
 	}
 }

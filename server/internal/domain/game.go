@@ -4,6 +4,7 @@ type Game struct {
 	Word         string
 	GuessedWord  []rune
 	AttemptsLeft int
+	Score        int
 }
 
 func NewGame(word string, attempts int) *Game {

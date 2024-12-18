@@ -15,6 +15,7 @@ func main() {
 	logger := utils.NewCustomLogger(utils.LevelDebug)
 	// Репозитории
 	roomRepo := repository.NewRoomRepository()
+	playerRepo := repository.NewPlayerRepository()
 	wordsRepo, err := repository.NewWordsRepository("../assets" + string(os.PathSeparator) + "words.json")
 	if err != nil {
 		logger.Fatal(fmt.Sprintf("Failed to init words repo: %v", err))
@@ -22,7 +23,7 @@ func main() {
 
 	// Сервисы
 	gameService := service.NewGameService(wordsRepo)
-	roomController := service.NewRoomController(roomRepo, gameService)
+	roomController := service.NewRoomController(roomRepo, playerRepo, gameService)
 
 	// Обработчики
 	handler := tcp.NewHandler(roomController)

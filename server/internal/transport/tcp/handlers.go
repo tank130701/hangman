@@ -31,24 +31,24 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 }
 
 func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto CreateRoomRequest
-	if err := json.Unmarshal(message, &dto); err != nil {
+	var req CreateRoomRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid CREATE_ROOM payload")
 	}
 
 	player := &domain.Player{
-		Username: dto.PlayerUsername,
+		Username: req.PlayerUsername,
 		Conn:     conn,
 	}
 
-	room, err := h.RoomController.CreateRoom(player, dto.RoomID, dto.Password, dto.Category, dto.Difficulty)
+	room, err := h.RoomController.CreateRoom(player, req.RoomID, req.Password, req.Category, req.Difficulty)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
-	response := map[string]string{
-		"message":  "Room has been created successfully",
-		"room_id:": room.ID,
+	response := CreateRoomResponse{
+		Message: "Room has been created successfully",
+		RoomID:  room.ID,
 	}
 
 	responseBytes, err := json.Marshal(response)
@@ -74,7 +74,7 @@ func (h *Handler) handleStartGameRequest(conn net.Conn, message []byte) ([]byte,
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
-	response := map[string]string{"message": "Game started successfully"}
+	response := StartGameResponse{Message: "Game started successfully"}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
@@ -190,6 +190,7 @@ func (h *Handler) handleGetGameStateRequest(conn net.Conn, message []byte) ([]by
 			WordProgress: state.WordProgress,
 			AttemptsLeft: state.AttemptsLeft,
 			IsGameOver:   state.IsGameOver,
+			Score:        state.Score,
 		}
 	}
 
@@ -213,20 +214,23 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to fetch rooms")
 	}
 
-	// Преобразуем комнаты в DTO для клиента
-	roomDTOs := make([]map[string]interface{}, len(rooms))
+	roomDTOs := make([]RoomDTO, len(rooms))
 	for i, room := range rooms {
-		roomDTOs[i] = map[string]interface{}{
-			"id":            room.ID,
-			"owner":         room.Owner,
-			"players_count": room.GetPlayerCount(),
-			"max_players":   room.MaxPlayers,
-			"is_open":       room.IsOpen,
-			"last_activity": room.LastActivity,
+		roomDTOs[i] = RoomDTO{
+			ID:           room.ID,
+			Owner:        *room.Owner,
+			PlayersCount: room.GetPlayerCount(),
+			MaxPlayers:   room.MaxPlayers,
+			IsOpen:       room.IsOpen,
+			LastActivity: room.LastActivity,
 		}
 	}
 
-	responseBytes, err := json.Marshal(roomDTOs)
+	response := GetAllRoomsResponse{
+		Rooms: roomDTOs,
+	}
+
+	responseBytes, err := json.Marshal(response)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to serialize rooms")
 	}

@@ -25,12 +25,22 @@ type Room struct {
 	Difficulty   string
 	StateManager *GameStateManager
 	RoomState    roomState
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // RoomLock блокирует комнату для потокобезопасной работы
 func (r *Room) Lock() {
 	r.mu.Lock()
+}
+
+// RoomUnlock снимает блокировку с комнаты
+func (r *Room) RUnlock() {
+	r.mu.RUnlock()
+}
+
+// RoomLock блокирует комнату для потокобезопасной работы
+func (r *Room) RLock() {
+	r.mu.RLock()
 }
 
 // RoomUnlock снимает блокировку с комнаты
@@ -77,15 +87,15 @@ func (r *Room) HasPlayer(username string) bool {
 }
 
 func (r *Room) GetPlayerCount() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	return len(r.Players)
 }
 
 func (r *Room) GetAllPlayers() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	players := make([]string, 0, len(r.Players))
 	for username := range r.Players {
