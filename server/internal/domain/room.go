@@ -16,9 +16,8 @@ const (
 type Room struct {
 	ID           string
 	Owner        *string
-	Players      map[string]struct{} // Используем map для хранения игроков
+	Players      map[string]*Player // Используем map для хранения игроков
 	LastActivity time.Time
-	IsOpen       bool
 	MaxPlayers   int
 	Password     string
 	Category     string
@@ -54,19 +53,19 @@ func (r *Room) UpdateActivity() {
 	r.LastActivity = time.Now()
 }
 
-func (r *Room) AddPlayer(username string) {
+func (r *Room) AddPlayer(player *Player) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.Players == nil {
-		r.Players = make(map[string]struct{}) // Инициализация Players, если nil
+		r.Players = make(map[string]*Player) // Инициализация Players, если nil
 	}
 
 	if len(r.Players) >= r.MaxPlayers {
 		return // Не добавляем игрока, если комната заполнена
 	}
 
-	r.Players[username] = struct{}{}
+	r.Players[player.Username] = player
 }
 
 func (r *Room) RemovePlayer(username string) {

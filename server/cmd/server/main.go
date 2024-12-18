@@ -8,6 +8,7 @@ import (
 	"hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 	"os"
+	"time"
 )
 
 func main() {
@@ -33,6 +34,20 @@ func main() {
 		timeout := 300 // Таймаут удаления комнат в секундах
 		logger.Info(fmt.Sprintf("Room cleanup process started with timeout: %d seconds", timeout))
 		roomController.CleanupRooms(timeout)
+	}()
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Second) // Проверяем каждые 10 секунд
+		defer ticker.Stop()
+
+		for range ticker.C {
+			disconnectedPlayers := playerRepo.CheckConnections(30 * time.Second) // Таймаут — 30 секунд
+
+			// Логируем отключённых игроков
+			for _, player := range disconnectedPlayers {
+				logger.Info(fmt.Sprintf("Игрок %s был удалён из-за таймаута реконнекта", player))
+			}
+		}
 	}()
 
 	// Создаём и запускаем TCP-сервер

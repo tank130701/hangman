@@ -78,4 +78,3 @@ func (r *InMemoryRoomRepository) GetAllRooms() []*domain.Room {
 
 	return rooms
 }
-

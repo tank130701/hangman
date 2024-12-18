@@ -4,7 +4,6 @@ import "time"
 
 type CreateRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 	Password       string `json:"password"`
 	Category       string `json:"category"`
@@ -18,7 +17,7 @@ type CreateRoomResponse struct {
 
 type StartGameRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
+	Password       string `json:"password"`
 	RoomID         string `json:"room_id"`
 }
 
@@ -28,20 +27,19 @@ type StartGameResponse struct {
 
 type JoinRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 	Password       string `json:"password"`
 }
 
 type DeleteRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
+	Password       string `json:"password"`
 }
 
 type GuessLetterRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
+	Password       string `json:"password"`
 	RoomID         string `json:"room_id"`
 	Letter         string `json:"letter"`
 }
@@ -55,7 +53,6 @@ type GuessLetterResponse struct {
 
 type GetGameStateRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Command        string `json:"command"`
 	RoomID         string `json:"room_id"`
 }
 
@@ -83,4 +80,13 @@ type RoomDTO struct {
 // GetAllRoomsResponse описывает ответ для запроса всех комнат
 type GetAllRoomsResponse struct {
 	Rooms []RoomDTO `json:"rooms"` // Список всех комнат
+}
+
+type PlayerScoreDTO struct {
+	Username string `json:"username"`
+	Score    int    `json:"score"`
+}
+
+type GetLeaderBoardResponse struct {
+	Players []PlayerScoreDTO `json:"players"`
 }

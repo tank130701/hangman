@@ -28,6 +28,7 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("GUESS_LETTER", h.handleGuessLetterRequest)
 	srv.RegisterHandler("GET_GAME_STATE", h.handleGetGameStateRequest)
 	srv.RegisterHandler("GET_ALL_ROOMS", h.handleGetAllRoomsRequest)
+	srv.RegisterHandler("GET_LEADERBOARD", h.handleGetLeaderBoard)
 }
 
 func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
@@ -36,12 +37,7 @@ func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid CREATE_ROOM payload")
 	}
 
-	player := &domain.Player{
-		Username: req.PlayerUsername,
-		Conn:     conn,
-	}
-
-	room, err := h.RoomController.CreateRoom(player, req.RoomID, req.Password, req.Category, req.Difficulty)
+	room, err := h.RoomController.CreateRoom(req.PlayerUsername, req.RoomID, req.Password, req.Category, req.Difficulty)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
@@ -58,18 +54,30 @@ func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte
 	return responseBytes, nil
 }
 
+func (h *Handler) handleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
+	var req JoinRoomRequest
+	if err := json.Unmarshal(message, &req); err != nil {
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid JOIN_ROOM payload")
+	}
+	room, err := h.RoomController.JoinRoom(conn, req.PlayerUsername, req.RoomID, req.Password)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+	}
+	responseBytes, err := json.Marshal(room)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+	}
+	return responseBytes, nil
+}
+
 func (h *Handler) handleStartGameRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto StartGameRequest
-	if err := json.Unmarshal(message, &dto); err != nil {
+	var req StartGameRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid START_GAME payload")
 	}
-
-	player := &domain.Player{
-		Username: dto.PlayerUsername,
-		Conn:     conn,
-	}
-
-	err := h.RoomController.StartGame(player, dto.RoomID)
+	connAddr := conn.RemoteAddr().String()
+	clientKey := domain.NewClientKey(connAddr, req.PlayerUsername, req.Password)
+	err := h.RoomController.StartGame(clientKey, req.RoomID)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
@@ -83,40 +91,15 @@ func (h *Handler) handleStartGameRequest(conn net.Conn, message []byte) ([]byte,
 	return responseBytes, nil
 }
 
-func (h *Handler) handleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto JoinRoomRequest
-	if err := json.Unmarshal(message, &dto); err != nil {
-		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid JOIN_ROOM payload")
-	}
-
-	player := &domain.Player{
-		Username: dto.PlayerUsername,
-		Conn:     conn,
-	}
-
-	room, err := h.RoomController.JoinRoom(player, dto.RoomID, dto.Password)
-	if err != nil {
-		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
-	}
-	responseBytes, err := json.Marshal(room)
-	if err != nil {
-		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
-	}
-	return responseBytes, nil
-}
-
 func (h *Handler) handleDeleteRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto DeleteRoomRequest
-	if err := json.Unmarshal(message, &dto); err != nil {
+	var req DeleteRoomRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid DELETE_ROOM payload")
 	}
+	connAddr := conn.RemoteAddr().String()
+	clientKey := domain.NewClientKey(connAddr, req.PlayerUsername, req.Password)
 
-	player := &domain.Player{
-		Username: dto.PlayerUsername,
-		Conn:     conn,
-	}
-
-	err := h.RoomController.DeleteRoom(player, dto.RoomID)
+	err := h.RoomController.DeleteRoom(clientKey, req.RoomID)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
@@ -130,29 +113,26 @@ func (h *Handler) handleDeleteRoomRequest(conn net.Conn, message []byte) ([]byte
 }
 
 func (h *Handler) handleGuessLetterRequest(conn net.Conn, message []byte) ([]byte, error) {
-	var dto GuessLetterRequest
-	if err := json.Unmarshal(message, &dto); err != nil {
+	var req GuessLetterRequest
+	if err := json.Unmarshal(message, &req); err != nil {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid GUESS_LETTER payload")
 	}
 
 	// Проверяем длину введённого символа
-	if utf8.RuneCountInString(dto.Letter) != 1 {
+	if utf8.RuneCountInString(req.Letter) != 1 {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid letter input. Please provide a single character.")
 	}
 
-	player := &domain.Player{
-		Username: dto.PlayerUsername,
-		Conn:     conn,
-	}
-
-	isCorrect, feedback, err := h.RoomController.MakeGuess(player, dto.RoomID, []rune(dto.Letter)[0])
+	connAddr := conn.RemoteAddr().String()
+	clientKey := domain.NewClientKey(connAddr, req.PlayerUsername, req.Password)
+	isCorrect, feedback, err := h.RoomController.MakeGuess(clientKey, req.RoomID, []rune(req.Letter)[0])
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
 
 	// Формируем успешный ответ
 	response := GuessLetterResponse{
-		PlayerUsername: dto.PlayerUsername,
+		PlayerUsername: req.PlayerUsername,
 		IsCorrect:      isCorrect,
 		Feedback:       feedback,
 	}
@@ -221,7 +201,6 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 			Owner:        *room.Owner,
 			PlayersCount: room.GetPlayerCount(),
 			MaxPlayers:   room.MaxPlayers,
-			IsOpen:       room.IsOpen,
 			LastActivity: room.LastActivity,
 		}
 	}
@@ -233,6 +212,33 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to serialize rooms")
+	}
+
+	return responseBytes, nil
+}
+
+func (h *Handler) handleGetLeaderBoard(conn net.Conn, message []byte) ([]byte, error) {
+	// Получаем данные о пользователях и их очках
+	userScores := h.RoomController.GetPlayerUsernamesAndScores()
+
+	// Формируем DTO
+	playerDTOs := make([]PlayerScoreDTO, 0, len(userScores))
+	for username, score := range userScores {
+		playerDTOs = append(playerDTOs, PlayerScoreDTO{
+			Username: username,
+			Score:    score,
+		})
+	}
+
+	// Формируем ответ
+	response := GetLeaderBoardResponse{
+		Players: playerDTOs,
+	}
+
+	// Сериализуем в JSON
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to serialize players scores")
 	}
 
 	return responseBytes, nil

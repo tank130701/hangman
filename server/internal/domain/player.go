@@ -1,15 +1,28 @@
 package domain
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 type Player struct {
-	Username string
-	Conn     net.Conn
+	Username    string
+	Score       int
+	Conn        net.Conn
+	IsConnected bool      // Поле для проверки подключения
+	LastActive  time.Time // Время последней активности
 }
 
-func NewPlayer(conn net.Conn, id int, name string) *Player {
+func NewPlayer(
+	name string,
+	score int,
+	conn net.Conn,
+) *Player {
 	return &Player{
-		Username: name,
-		Conn:     conn,
+		Username:    name,
+		Score:       score,
+		Conn:        conn,
+		IsConnected: true,       // Новый игрок подключён по умолчанию
+		LastActive:  time.Now(), // Инициализируем время активности
 	}
 }
