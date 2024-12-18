@@ -3,13 +3,13 @@ package service
 import (
 	"errors"
 	"hangman/internal/domain"
-	"hangman/internal/repository"
 	"time"
 )
 
 type RoomController struct {
 	roomRepo    domain.IRoomRepository
 	gameService domain.IGameService
+	playersRepo domain.IPlayerRepository
 }
 
 func NewRoomController(roomRepo domain.IRoomRepository, gameService domain.IGameService) *RoomController {
@@ -21,9 +21,9 @@ func NewRoomController(roomRepo domain.IRoomRepository, gameService domain.IGame
 
 func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password, category, difficulty string) (*domain.Room, error) {
 	room := &domain.Room{
-		ID:          roomID,
-		Owner:       player,
-		PlayersRepo: repository.NewPlayerRepository(),
+		ID:      roomID,
+		Owner:   &player.Username,
+		Players: make(map[string]struct{}),
 		//StateManager: domain.NewGameStateManager(),
 		Password:     password,
 		Category:     category,
@@ -37,7 +37,7 @@ func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password, ca
 		return nil, err
 	}
 
-	//err := room.PlayersRepo.AddPlayer(player)
+	//err := rc.playersRepo.AddPlayer(player)
 	//if err != nil {
 	//	return nil, err
 	//}
@@ -56,10 +56,12 @@ func (rc *RoomController) JoinRoom(player *domain.Player, roomID, password strin
 		return nil, errors.New("incorrect password")
 	}
 
-	err = room.PlayersRepo.AddPlayer(player)
+	err = rc.playersRepo.AddPlayer(player)
 	if err != nil {
 		return nil, err
 	}
+
+	room.AddPlayer(player.Username)
 
 	return room, nil
 }
@@ -69,8 +71,8 @@ func (rc *RoomController) LeaveRoom(player *domain.Player, roomID string) error 
 	if err != nil {
 		return err
 	}
-
-	err = room.PlayersRepo.RemovePlayer(player.Username)
+	room.RemovePlayer(player.Username)                 // Удаление из комнаты
+	err = rc.playersRepo.RemovePlayer(player.Username) // Удаление из глобального репозитория
 	if err != nil {
 		return err
 	}
@@ -84,15 +86,37 @@ func (rc *RoomController) DeleteRoom(player *domain.Player, roomID string) error
 	}
 
 	// Проверяем, является ли пользователь владельцем комнаты
-	if room.Owner.Username != player.Username {
+	if *room.Owner != player.Username {
 		return errors.New("only the owner can delete the room")
 	}
 	// Удаляем всех игроков из комнаты
-	for _, p := range room.PlayersRepo.GetAllPlayers() {
-		err := room.PlayersRepo.RemovePlayer(p.Username)
+	for _, player := range room.GetAllPlayers() {
+		err := rc.playersRepo.RemovePlayer(player)
 		if err != nil {
 			return err
-		} //TODO: check this
+		}
+	}
+
+	// Удаляем комнату из репозитория
+	if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rc *RoomController) forceDeleteRoom(roomID string) error {
+	room, err := rc.roomRepo.GetRoomByID(roomID)
+	if err != nil {
+		return err // Комната не найдена
+	}
+
+	// Удаляем всех игроков из комнаты
+	for _, player := range room.GetAllPlayers() {
+		err := rc.playersRepo.RemovePlayer(player)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Удаляем комнату из репозитория
@@ -111,7 +135,7 @@ func (rc *RoomController) CleanupRooms(timeoutSeconds int) {
 		rooms := rc.roomRepo.GetAllRooms()
 		for _, room := range rooms {
 			if time.Since(room.LastActivity) > time.Duration(timeoutSeconds)*time.Second {
-				rc.roomRepo.RemoveRoom(room.ID)
+				rc.forceDeleteRoom(room.ID)
 			}
 		}
 	}
@@ -123,7 +147,7 @@ func (rc *RoomController) StartGame(player *domain.Player, roomID string) error 
 		return err
 	}
 
-	if room.Owner.Username != player.Username {
+	if *room.Owner != player.Username {
 		return errors.New("only the owner can start the game")
 	}
 
@@ -155,7 +179,7 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 	}
 
 	// Если в комнате никого не осталось, удаляем её
-	if room.PlayersRepo.GetPlayerCount() == 0 {
+	if room.GetPlayerCount() == 0 {
 		if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
 			return err
 		}
@@ -163,7 +187,7 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 	}
 
 	// Переназначаем владельца (первый оставшийся игрок становится владельцем)
-	room.Owner = room.PlayersRepo.GetAllPlayers()[0]
+	room.Owner = &room.GetAllPlayers()[0]
 
 	// Обновляем комнату в репозитории
 	if err := rc.roomRepo.UpdateRoom(room); err != nil {
@@ -171,18 +195,6 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 	}
 
 	return nil
-}
-
-func (rc *RoomController) JoinRandomRoom(player *domain.Player) (*domain.Room, error) {
-	rooms := rc.roomRepo.GetAllRooms()
-
-	for _, room := range rooms {
-		if room.IsOpen && room.PlayersRepo.GetPlayerCount() < room.MaxPlayers {
-			return rc.JoinRoom(player, room.ID, "")
-		}
-	}
-
-	return nil, errors.New("no available rooms")
 }
 
 func (rc *RoomController) GetAllRooms() ([]*domain.Room, error) {

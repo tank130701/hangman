@@ -218,8 +218,8 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 	for i, room := range rooms {
 		roomDTOs[i] = map[string]interface{}{
 			"id":            room.ID,
-			"owner":         room.Owner.Username,
-			"players_count": room.PlayersRepo.GetPlayerCount(),
+			"owner":         room.Owner,
+			"players_count": room.GetPlayerCount(),
 			"max_players":   room.MaxPlayers,
 			"is_open":       room.IsOpen,
 			"last_activity": room.LastActivity,

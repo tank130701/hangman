@@ -25,13 +25,13 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 		room.StateManager = domain.NewGameStateManager()
 	}
 
-	for _, player := range room.PlayersRepo.GetAllPlayers() {
+	for _, player := range room.GetAllPlayers() {
 		word, err := gs.wordsRepo.GetRandomWord(room.Category)
 		if err != nil {
 			return err
 		}
 		attemptsCount := gs.wordsRepo.GetAttempts(word, room.Difficulty)
-		room.StateManager.AddGame(word, domain.PlayerUsername(player.Username), attemptsCount)
+		room.StateManager.AddGame(word, domain.PlayerUsername(player), attemptsCount)
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func (gs *GameServiceImpl) MakeGuess(room *domain.Room, player *domain.Player, l
 	if room.StateManager == nil {
 		return false, "", errors.New("no game in this room")
 	}
-
+	room.UpdateActivity()
 	return room.StateManager.MakeGuess(domain.PlayerUsername(player.Username), letter)
 }
 
@@ -62,9 +62,9 @@ func (gs *GameServiceImpl) GetGameState(room *domain.Room) (map[string]*domain.G
 	playerGameStates := make(map[string]*domain.GameState)
 
 	// Получаем состояние для каждого игрока в комнате
-	for _, player := range room.PlayersRepo.GetAllPlayers() {
-		gameState := room.StateManager.GetState(domain.PlayerUsername(player.Username))
-		playerGameStates[player.Username] = &gameState
+	for _, player := range room.GetAllPlayers() {
+		gameState := room.StateManager.GetState(domain.PlayerUsername(player))
+		playerGameStates[player] = &gameState
 	}
 
 	return playerGameStates, nil

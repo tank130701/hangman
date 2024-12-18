@@ -11,7 +11,6 @@ type IRoomRepository interface {
 type IRoomController interface {
 	CreateRoom(player *Player, roomID, password, category, difficulty string) (*Room, error)
 	JoinRoom(player *Player, roomID, password string) (*Room, error)
-	JoinRandomRoom(player *Player) (*Room, error)
 	DeleteRoom(player *Player, roomID string) error
 	LeaveRoom(player *Player, roomID string) error
 	HandleOwnerChange(roomID string) error
