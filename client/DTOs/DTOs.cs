@@ -1,37 +1,56 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
-// Общий универсальный ответ
-public class Response<T>
+// Создание команты
+public class CreateRoomRequest
 {
-    public int StatusCode { get; set; }
-    public T Data { get; set; }
-    public ErrorResponse Error { get; set; }
+    [JsonPropertyName("player_username")]
+    public required string PlayerUsername { get; set; }
+    [JsonPropertyName("room_id")]
+    public required string RoomID { get; set; }
+    [JsonPropertyName("password")]
+    public required string Password { get; set; }
+    [JsonPropertyName("category")]
+    public required string Category { get; set; }
+    [JsonPropertyName("difficulty")]
+    public required string Difficulty { get; set; }
+
+}
+public class CreateRoomResponse
+{
+    [JsonPropertyName("message")]
+    public string Message { get; set; }
+
+    [JsonPropertyName("room_id")]
+    public string RoomID { get; set; }
 }
 
-public class ErrorResponse
+// Старт игры
+public class StartGameRequest
 {
+    [JsonPropertyName("player_username")]
+    public required string PlayerUsername { get; set; }
+    [JsonPropertyName("room_id")]
+    public required string RoomID { get; set; }
+    [JsonPropertyName("password")]
+    public required string Password { get; set; }
+}
+public class StartGameResponse
+{
+    [JsonPropertyName("message")]
     public string Message { get; set; }
 }
-// Универсальный конвертер для произвольного содержимого payload
-public class JsonStringConverter : JsonConverter<JsonElement?>
-{
-    public override JsonElement? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        return JsonDocument.ParseValue(ref reader).RootElement;
-    }
 
-    public override void Write(Utf8JsonWriter writer, JsonElement? value, JsonSerializerOptions options)
-    {
-        if (value.HasValue)
-        {
-            value.Value.WriteTo(writer);
-        }
-        else
-        {
-            writer.WriteNullValue();
-        }
-    }
+// Вход в комнату
+public class JoinRoomRequest
+{
+    [JsonPropertyName("player_username")]
+    public required string PlayerUsername { get; set; }
+
+    [JsonPropertyName("room_id")]
+    public required string RoomID { get; set; }
+
+    [JsonPropertyName("password")]
+    public required string Password { get; set; }
 }
 public class RoomDTO
 {
@@ -47,109 +66,40 @@ public class RoomDTO
     [JsonPropertyName("max_players")]
     public int MaxPlayers { get; set; }
 
-    [JsonPropertyName("is_open")]
-    public bool IsOpen { get; set; }
+    //[JsonPropertyName("is_open")]
+    //public bool IsOpen { get; set; }
 
     [JsonPropertyName("last_activity")]
     public string LastActivity { get; set; }
 }
 
-// DTO для создания комнаты
-public class CreateRoomRequest
+// Удаление комнаты
+public class DeleteRoomRequest
 {
     [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("command")]
-    public string Command { get; set; }
+    public required string PlayerUsername { get; set; }
 
     [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
-
-    [JsonPropertyName("category")]
-    public string Category { get; set; }
-
-    [JsonPropertyName("difficulty")]
-    public string Difficulty { get; set; }
-
+    public required string RoomID { get; set; }
     [JsonPropertyName("password")]
-    public string Password { get; set; }
+    public required string Password { get; set; }
 }
-
-// DTO для входа в комнату
-public class JoinRoomRequest
+public class DeleteRoomResponse
 {
-    [JsonPropertyName("command")]
-    public string Command { get; set; }
-
-    [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
-
-    [JsonPropertyName("password")]
-    public string Password { get; set; }
+    public bool Success { get; set; }
+    public string Message { get; set; }
 }
 
-// DTO для старта игры
-public class StartGameRequest
-{
-    [JsonPropertyName("command")]
-    public string Command { get; set; }
-
-    [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
-}
 
 // DTO для получения состояния игры
 public class GetGameStateRequest
 {
     [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("command")]
-    public string Command { get; set; }
+    public required string PlayerUsername { get; set; }
 
     [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
+    public required string RoomID { get; set; }
 }
-
-// DTO для угадывания буквы
-public class GuessLetterRequest
-{
-    [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("command")]
-    public string Command { get; set; }
-
-    [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
-
-    [JsonPropertyName("letter")]
-    public string Letter { get; set; }
-}
-
-// Ответ на угадывание буквы
-public class GuessLetterResponse
-{
-    [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
-
-    [JsonPropertyName("is_correct")]
-    public bool IsCorrect { get; set; }
-
-    [JsonPropertyName("game_over")]
-    public bool GameOver { get; set; }
-
-    [JsonPropertyName("feedback")]
-    public string Feedback { get; set; }
-}
-
 
 public class PlayerGameState
 {
@@ -161,10 +111,60 @@ public class PlayerGameState
 
     [JsonPropertyName("is_game_over")]
     public bool IsGameOver { get; set; } // Статус завершения игры
+    [JsonPropertyName("score")]
+    public int Score { get; set; } // Счет
 }
 
 public class RoomGameStateResponse
 {
     [JsonPropertyName("players")]
     public Dictionary<string, PlayerGameState> Players { get; set; } // Карта состояний игроков
+}
+
+// DTO для угадывания буквы
+public class GuessLetterRequest
+{
+    [JsonPropertyName("player_username")]
+    public required string PlayerUsername { get; set; }
+
+    [JsonPropertyName("room_id")]
+    public required string RoomID { get; set; }
+
+    [JsonPropertyName("letter")]
+    public required string Letter { get; set; }
+    [JsonPropertyName("password")]
+    public required string Password { get; set; }
+}
+
+// Ответ на угадывание буквы
+public class GuessLetterResponse
+{
+    [JsonPropertyName("player_username")]
+    public required string PlayerUsername { get; set; }
+
+    [JsonPropertyName("is_correct")]
+    public required bool IsCorrect { get; set; }
+
+    [JsonPropertyName("game_over")]
+    public required bool GameOver { get; set; }
+
+    [JsonPropertyName("feedback")]
+    public required string Feedback { get; set; }
+}
+
+public class PlayerScoreDTO
+{
+    public string Username { get; set; }
+    public int Score { get; set; }
+}
+
+public class GetLeaderBoardResponse
+{
+    public PlayerScoreDTO[] Players { get; set; } // Используем массив
+}
+
+public class GetAllRoomsResponse
+{
+    [JsonPropertyName("rooms")]
+    public RoomDTO[] Rooms { get; set; } // Используем массив
 }

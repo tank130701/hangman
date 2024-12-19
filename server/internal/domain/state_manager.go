@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"fmt"
+	"sync"
+)
+
 type PlayerUsername string
 
 type GameState struct {
@@ -11,6 +16,7 @@ type GameState struct {
 
 type GameStateManager struct {
 	games map[PlayerUsername]*Game
+	mu    sync.RWMutex // Для защиты карты игр
 }
 
 func NewGameStateManager() *GameStateManager {
@@ -20,20 +26,33 @@ func NewGameStateManager() *GameStateManager {
 }
 
 func (gsm *GameStateManager) AddGame(word string, username PlayerUsername, attempts int) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
 	gsm.games[username] = NewGame(word, attempts)
 }
 
-func (gsm *GameStateManager) GetState(username PlayerUsername) GameState {
-	return GameState{
-		WordProgress: gsm.games[username].DisplayWord(),
-		AttemptsLeft: gsm.games[username].AttemptsLeft,
-		IsGameOver:   gsm.games[username].IsWordGuessed() || gsm.games[username].AttemptsLeft <= 0,
-		Score:        gsm.games[username].Score,
+func (gsm *GameStateManager) GetState(username PlayerUsername) (GameState, error) {
+	gsm.mu.RLock()
+	defer gsm.mu.RUnlock()
+	game, exists := gsm.games[username]
+	if !exists {
+		return GameState{}, fmt.Errorf("no game found for username: %s", username)
 	}
+	return GameState{
+		WordProgress: game.DisplayWord(),
+		AttemptsLeft: game.AttemptsLeft,
+		IsGameOver:   game.IsWordGuessed() || game.AttemptsLeft <= 0,
+		Score:        game.Score,
+	}, nil
 }
 
 func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bool, string, error) {
-	game := gsm.games[username]
+	gsm.mu.RLock()
+	defer gsm.mu.RUnlock()
+	game, exists := gsm.games[username]
+	if !exists {
+		return false, "", fmt.Errorf("no game found for username: %s", username)
+	}
 
 	isCorrect := game.UpdateGuessedWord(letter)
 

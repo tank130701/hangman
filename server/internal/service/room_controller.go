@@ -69,9 +69,7 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 	if err != nil {
 		return nil, err
 	}
-
 	room.AddPlayer(player)
-
 	return room, nil
 }
 
@@ -129,15 +127,17 @@ func (rc *RoomController) forceDeleteRoom(roomID string) error {
 		return err // Комната не найдена
 	}
 
-	// Удаляем всех игроков из комнаты
-	for _, player := range room.GetAllPlayers() {
+	room.RLock()
+	players := room.GetAllPlayers()
+	room.RUnlock()
+
+	for _, player := range players {
 		err := rc.playersRepo.RemovePlayerByUsername(player)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Удаляем комнату из репозитория
 	if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
 		return err
 	}
@@ -164,6 +164,8 @@ func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) e
 	if err != nil {
 		return err
 	}
+	//room.Lock()
+	//defer room.Unlock()
 	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err

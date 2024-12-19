@@ -17,8 +17,8 @@ type CreateRoomResponse struct {
 
 type StartGameRequest struct {
 	PlayerUsername string `json:"player_username"`
-	Password       string `json:"password"`
 	RoomID         string `json:"room_id"`
+	Password       string `json:"password"`
 }
 
 type StartGameResponse struct {
@@ -69,11 +69,11 @@ type GetGameStateResponse struct {
 
 // RoomDTO описывает данные о комнате
 type RoomDTO struct {
-	ID           string    `json:"id"`            // Уникальный идентификатор комнаты
-	Owner        string    `json:"owner"`         // Имя владельца комнаты
-	PlayersCount int       `json:"players_count"` // Текущее количество игроков
-	MaxPlayers   int       `json:"max_players"`   // Максимальное количество игроков
-	IsOpen       bool      `json:"is_open"`       // Статус комнаты (открыта/закрыта)
+	ID           string `json:"id"`            // Уникальный идентификатор комнаты
+	Owner        string `json:"owner"`         // Имя владельца комнаты
+	PlayersCount int    `json:"players_count"` // Текущее количество игроков
+	MaxPlayers   int    `json:"max_players"`   // Максимальное количество игроков
+	//IsOpen       bool      `json:"is_open"`       // Статус комнаты (открыта/закрыта)
 	LastActivity time.Time `json:"last_activity"` // Время последней активности
 }
 

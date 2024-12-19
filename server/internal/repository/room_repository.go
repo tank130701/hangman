@@ -8,7 +8,7 @@ import (
 
 type InMemoryRoomRepository struct {
 	rooms map[string]*domain.Room
-	mu    sync.RWMutex
+	mu    sync.Mutex
 }
 
 func NewRoomRepository() domain.IRoomRepository {
@@ -44,8 +44,8 @@ func (r *InMemoryRoomRepository) UpdateRoom(room *domain.Room) error {
 }
 
 func (r *InMemoryRoomRepository) GetRoomByID(roomID string) (*domain.Room, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	room, exists := r.rooms[roomID]
 	if !exists {
@@ -68,8 +68,8 @@ func (r *InMemoryRoomRepository) RemoveRoom(roomID string) error {
 }
 
 func (r *InMemoryRoomRepository) GetAllRooms() []*domain.Room {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	rooms := make([]*domain.Room, 0, len(r.rooms))
 	for _, room := range r.rooms {

@@ -14,7 +14,6 @@ class HangmanClient
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom",
             Password = "12345",
-            Command = "CREATE_ROOM",
             Difficulty = "medium",
             Category = "животные"
         };
@@ -32,12 +31,12 @@ class HangmanClient
         SendMessage(stream, "GET_ALL_ROOMS", getAllRoomsPayload);
 
         var response = ReadMessage<ServerResponse>(stream);
-        var rooms = DeserializePayload<List<RoomDTO>>(response.Payload);
+        var getAllRoomsResponse = DeserializePayload<GetAllRoomsResponse>(response.Payload);
 
         Console.WriteLine("Available Rooms:");
-        foreach (var room in rooms)
+        foreach (var room in getAllRoomsResponse.Rooms)
         {
-            Console.WriteLine($"Room ID: {room.Id}, Owner: {room.Owner}, Players: {room.PlayersCount}/{room.MaxPlayers}, IsOpen: {room.IsOpen}, LastActivity: {room.LastActivity}");
+            Console.WriteLine($"Room ID: {room.Id}, Owner: {room.Owner}, Players: {room.PlayersCount}/{room.MaxPlayers}, LastActivity: {room.LastActivity}");
         }
     }
 
@@ -48,7 +47,6 @@ class HangmanClient
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom",
             Password = "12345",
-            Command = "JOIN_ROOM"
         };
         var joinRoomPayload = SerializeToJson(joinRoomRequest);
         SendMessage(stream, "JOIN_ROOM", joinRoomPayload);
@@ -63,7 +61,7 @@ class HangmanClient
         {
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom",
-            Command = "START_GAME"
+            Password = "12345",
         };
         var startGamePayload = SerializeToJson(startGameRequest);
         SendMessage(stream, "START_GAME", startGamePayload);
@@ -111,10 +109,6 @@ public static void SimulateGamePlay(NetworkStream stream)
         // Обновляем прогресс игроков
         foreach (var player in gameStateData.Players)
         {
-            if (!playerAttempts.ContainsKey(player.Key))
-            {
-                playerAttempts[player.Key] = 7; // Инициализируем прогресс с максимальным количеством попыток
-            }
             playerAttempts[player.Key] = player.Value.AttemptsLeft;
         }
 
@@ -125,7 +119,7 @@ public static void SimulateGamePlay(NetworkStream stream)
             Console.WriteLine($"Player: {player.Key}");
             Console.WriteLine(hangmanStages[7 - playerAttempts[player.Key]]);
             Console.WriteLine($"Word Progress: {player.Value.WordProgress}");
-            Console.WriteLine($"Attempts Left: {player.Value.AttemptsLeft}/7");
+            Console.WriteLine($"Attempts Left: {player.Value.AttemptsLeft}");
             Console.WriteLine();
         }
 
@@ -164,10 +158,10 @@ public static void SimulateGamePlay(NetworkStream stream)
         // Отправляем запрос на угадывание
         var guessLetterRequest = new GuessLetterRequest
         {
-            Command = "GUESS_LETTER",
             PlayerUsername = "TestPlayer",
             RoomID = "TestRoom",
-            Letter = letter.ToString()
+            Letter = letter.ToString(),
+            Password = "12345"
         };
 
         var guessLetterPayload = SerializeToJson(guessLetterRequest);

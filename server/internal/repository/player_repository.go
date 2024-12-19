@@ -43,8 +43,8 @@ func (r *InMemoryPlayerRepository) RemovePlayer(key domain.ClientKey) error {
 }
 
 func (r *InMemoryPlayerRepository) GetPlayerByKey(key domain.ClientKey) (*domain.Player, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	player, exists := r.players[key]
 	if !exists {
@@ -55,8 +55,8 @@ func (r *InMemoryPlayerRepository) GetPlayerByKey(key domain.ClientKey) (*domain
 }
 
 func (r *InMemoryPlayerRepository) GetAllPlayers() []*domain.Player {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	players := make([]*domain.Player, 0, len(r.players))
 	for _, player := range r.players {
@@ -67,8 +67,8 @@ func (r *InMemoryPlayerRepository) GetAllPlayers() []*domain.Player {
 }
 
 func (r *InMemoryPlayerRepository) GetPlayerCount() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	return len(r.players)
 }
@@ -77,9 +77,8 @@ func (r *InMemoryPlayerRepository) CheckConnections(timeout time.Duration) []dom
 	now := time.Now()
 	var toRemove []domain.ClientKey // Список игроков для удаления
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
+	// Чтение с RLock
+	r.mu.RLock()
 	for key, player := range r.players {
 		if player.IsConnected {
 			// Отправляем пинг игроку
@@ -95,13 +94,16 @@ func (r *InMemoryPlayerRepository) CheckConnections(timeout time.Duration) []dom
 			}
 		}
 	}
+	r.mu.RUnlock()
 
-	// Удаляем игроков, которые не реконнектнулись за timeout
+	// Удаление с Lock
+	r.mu.Lock()
 	for _, key := range toRemove {
 		player := r.players[key]
 		player.Conn.Close()
 		delete(r.players, key)
 	}
+	r.mu.Unlock()
 
 	return toRemove
 }
@@ -121,8 +123,8 @@ func (r *InMemoryPlayerRepository) UpdatePlayerActivity(key domain.ClientKey) er
 }
 
 func (r *InMemoryPlayerRepository) GetPlayerByUsername(username string) (*domain.Player, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	for key, player := range r.players {
 		if key.Username == username {
@@ -148,8 +150,8 @@ func (r *InMemoryPlayerRepository) RemovePlayerByUsername(username string) error
 }
 
 func (r *InMemoryPlayerRepository) GetPlayerUsernamesAndScores() map[string]int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	userScores := make(map[string]int)
 	for key, player := range r.players {

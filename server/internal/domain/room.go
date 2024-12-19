@@ -28,8 +28,8 @@ type Room struct {
 }
 
 // RoomLock блокирует комнату для потокобезопасной работы
-func (r *Room) Lock() {
-	r.mu.Lock()
+func (r *Room) RLock() {
+	r.mu.RLock()
 }
 
 // RoomUnlock снимает блокировку с комнаты
@@ -38,8 +38,8 @@ func (r *Room) RUnlock() {
 }
 
 // RoomLock блокирует комнату для потокобезопасной работы
-func (r *Room) RLock() {
-	r.mu.RLock()
+func (r *Room) Lock() {
+	r.mu.Lock()
 }
 
 // RoomUnlock снимает блокировку с комнаты
@@ -86,8 +86,8 @@ func (r *Room) HasPlayer(username string) bool {
 }
 
 func (r *Room) GetPlayerCount() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	return len(r.Players)
 }
