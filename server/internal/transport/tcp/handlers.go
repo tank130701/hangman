@@ -24,11 +24,13 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("CREATE_ROOM", h.handleCreateRoomRequest)
 	srv.RegisterHandler("START_GAME", h.handleStartGameRequest)
 	srv.RegisterHandler("JOIN_ROOM", h.handleJoinRoomRequest)
+	srv.RegisterHandler("LEAVE_ROOM", h.handleLeaveRoomRequest)
 	srv.RegisterHandler("DELETE_ROOM", h.handleDeleteRoomRequest)
 	srv.RegisterHandler("GUESS_LETTER", h.handleGuessLetterRequest)
 	srv.RegisterHandler("GET_GAME_STATE", h.handleGetGameStateRequest)
 	srv.RegisterHandler("GET_ALL_ROOMS", h.handleGetAllRoomsRequest)
 	srv.RegisterHandler("GET_LEADERBOARD", h.handleGetLeaderBoard)
+	srv.RegisterHandler("GET_ROOM_STATE", h.handleGetRoomStateRequest)
 }
 
 func (h *Handler) handleCreateRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
@@ -63,7 +65,44 @@ func (h *Handler) handleJoinRoomRequest(conn net.Conn, message []byte) ([]byte, 
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
-	responseBytes, err := json.Marshal(room)
+	players := ConvertPlayersToSlice(room.Players)
+	response := JoinRoomResponse{
+		ID:           room.ID,
+		Owner:        *room.Owner,
+		Players:      players,
+		LastActivity: room.LastActivity,
+		MaxPlayers:   room.MaxPlayers,
+		Password:     room.Password,
+		Category:     room.Category,
+		Difficulty:   room.Difficulty,
+		RoomState:    string(room.RoomState),
+	}
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+	}
+	return responseBytes, nil
+}
+
+func (h *Handler) handleLeaveRoomRequest(conn net.Conn, message []byte) ([]byte, error) {
+	var req LeaveRoomRequest
+	if err := json.Unmarshal(message, &req); err != nil {
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid LEAVE_ROOM payload")
+	}
+	connAddr := conn.RemoteAddr().String()
+	clientKey := domain.NewClientKey(connAddr, req.PlayerUsername, req.Password)
+
+	err := h.RoomController.LeaveRoom(clientKey, req.RoomID)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+	}
+
+	response := LeaveRoomResponse{
+		Message: "Successfully left the room",
+		RoomID:  req.RoomID,
+	}
+
+	responseBytes, err := json.Marshal(response)
 	if err != nil {
 		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
 	}
@@ -122,7 +161,6 @@ func (h *Handler) handleGuessLetterRequest(conn net.Conn, message []byte) ([]byt
 	if utf8.RuneCountInString(req.Letter) != 1 {
 		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid letter input. Please provide a single character.")
 	}
-
 	connAddr := conn.RemoteAddr().String()
 	clientKey := domain.NewClientKey(connAddr, req.PlayerUsername, req.Password)
 	isCorrect, feedback, err := h.RoomController.MakeGuess(clientKey, req.RoomID, []rune(req.Letter)[0])
@@ -188,6 +226,33 @@ func (h *Handler) handleGetGameStateRequest(conn net.Conn, message []byte) ([]by
 	return responseBytes, nil
 }
 
+func (h *Handler) handleGetRoomStateRequest(conn net.Conn, message []byte) ([]byte, error) {
+	// Разбираем запрос в DTO
+	var req GetRoomStateRequest
+	if err := json.Unmarshal(message, &req); err != nil {
+		return nil, errs.NewError(errs.ErrCodeInvalidJSON, "Invalid GET_ROOM_STATE payload")
+	}
+
+	// Получаем состояние комнаты через контроллер
+	roomState, err := h.RoomController.GetRoomState(req.RoomID, req.Password)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, err.Error())
+	}
+
+	// Формируем ответ DTO
+	response := GetRoomStateResponse{
+		State: *roomState,
+	}
+
+	// Сериализуем ответ в JSON
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, errs.NewError(errs.ErrCodeInternalServerError, "Failed to serialize response")
+	}
+
+	return responseBytes, nil
+}
+
 func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byte, error) {
 	rooms, err := h.RoomController.GetAllRooms()
 	if err != nil {
@@ -202,6 +267,7 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 			PlayersCount: room.GetPlayerCount(),
 			MaxPlayers:   room.MaxPlayers,
 			LastActivity: room.LastActivity,
+			GameState:    string(room.RoomState),
 		}
 	}
 

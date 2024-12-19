@@ -27,7 +27,6 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 	}
 	players := room.GetAllPlayers()
 
-	fmt.Println("Получил игроков")
 	for _, player := range players {
 		word, err := gs.wordsRepo.GetRandomWord(room.Category)
 		if err != nil {
@@ -36,7 +35,15 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 		attemptsCount := gs.wordsRepo.GetAttempts(word, room.Difficulty)
 		room.StateManager.AddGame(word, domain.PlayerUsername(player), attemptsCount)
 	}
-	fmt.Println("получил игроков")
+	room.SetState(domain.InProgress)
+	// Уведомляем игроков о начале игры
+	err := room.NotifyPlayers("GameStarted", domain.GameStartedPayload{
+		Category:   room.Category,
+		Difficulty: room.Difficulty,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to notify players: %w", err)
+	}
 	return nil
 }
 
@@ -65,7 +72,6 @@ func (gs *GameServiceImpl) GetGameState(room *domain.Room) (map[string]*domain.G
 	// Создаём карту для хранения состояния игры каждого игрока
 	playerGameStates := make(map[string]*domain.GameState)
 	players := room.GetAllPlayers()
-	fmt.Println("Получил игроков")
 	// Получаем состояние для каждого игрока в комнате
 	for _, player := range players {
 		gameState, err := room.StateManager.GetState(domain.PlayerUsername(player))

@@ -40,8 +40,10 @@ func (ws *WordsRepository) GetRandomWord(category string) (string, error) {
 		return "", errors.New("category not found or empty")
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	index := rand.Intn(len(words))
+	// Создаем локальный генератор случайных чисел
+	randomSource := rand.New(rand.NewSource(time.Now().UnixNano()))
+	index := randomSource.Intn(len(words))
+
 	return words[index], nil
 }
 

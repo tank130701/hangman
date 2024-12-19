@@ -1,6 +1,10 @@
 package domain
 
 import (
+	"encoding/json"
+	"fmt"
+	tcp_server "hangman/pkg/tcp-server"
+	"net"
 	"sync"
 	"time"
 )
@@ -25,6 +29,12 @@ type Room struct {
 	StateManager *GameStateManager
 	RoomState    roomState
 	mu           sync.RWMutex
+}
+
+func (r *Room) SetState(state roomState) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.RoomState = state
 }
 
 // RoomLock блокирует комнату для потокобезопасной работы
@@ -101,4 +111,38 @@ func (r *Room) GetAllPlayers() []string {
 		players = append(players, username)
 	}
 	return players
+}
+
+type GameStartedEvent struct {
+	Event   string             `json:"event"`   // Тип события
+	Payload GameStartedPayload `json:"payload"` // Данные события
+}
+
+type GameStartedPayload struct {
+	Category   string `json:"category"`   // Категория игры
+	Difficulty string `json:"difficulty"` // Сложность игры
+}
+
+func (r *Room) NotifyPlayers(event string, payload GameStartedPayload) error {
+	// Сериализация данных события
+	message, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to serialize event: %w", err)
+	}
+
+	// Собираем список подключенных клиентов
+	var clients []net.Conn
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, player := range r.Players {
+		if player.IsConnected && player.Username != *r.Owner {
+			clients = append(clients, player.Conn)
+		}
+	}
+
+	// Используем метод Notify для отправки сообщений
+	tcp_server.Notify(event, message, clients)
+	return nil
 }

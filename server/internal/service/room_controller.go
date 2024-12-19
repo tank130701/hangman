@@ -36,6 +36,7 @@ func (rc *RoomController) CreateRoom(player string, roomID, password, category, 
 		Difficulty:   difficulty,
 		LastActivity: time.Now(),
 		MaxPlayers:   5,
+		RoomState:    domain.Waiting,
 	}
 
 	if err := rc.roomRepo.AddRoom(room); err != nil {
@@ -70,6 +71,7 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 		return nil, err
 	}
 	room.AddPlayer(player)
+
 	return room, nil
 }
 
@@ -166,6 +168,9 @@ func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) e
 	}
 	//room.Lock()
 	//defer room.Unlock()
+	if room.RoomState == domain.InProgress {
+		return errors.New("game already started")
+	}
 	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err
@@ -188,6 +193,20 @@ func (rc *RoomController) MakeGuess(clientKey domain.ClientKey, roomID string, l
 	}
 
 	return rc.gameService.MakeGuess(room, player, letter)
+}
+
+func (rc *RoomController) GetRoomState(roomID, password string) (*string, error) {
+	room, err := rc.roomRepo.GetRoomByID(roomID)
+	if err != nil {
+		return nil, err
+	}
+	// Проверяем пароль
+	if room.Password != "" && room.Password != password {
+		return nil, errors.New("incorrect password")
+	}
+
+	roomState := string(room.RoomState)
+	return &roomState, nil
 }
 
 func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameState, error) {

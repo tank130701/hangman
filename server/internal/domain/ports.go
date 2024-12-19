@@ -18,6 +18,7 @@ type IRoomController interface {
 	JoinRoom(conn net.Conn, username, roomID, password string) (*Room, error)
 	StartGame(clientKey ClientKey, roomID string) error
 	MakeGuess(clientKey ClientKey, roomID string, letter rune) (bool, string, error)
+	GetRoomState(roomID, password string) (*string, error)
 	DeleteRoom(clientKey ClientKey, roomID string) error
 	LeaveRoom(clientKey ClientKey, roomID string) error
 	HandleOwnerChange(roomID string) error
@@ -34,7 +35,8 @@ type IPlayerRepository interface {
 	RemovePlayerByUsername(username string) error
 	GetAllPlayers() []*Player
 	GetPlayerCount() int
-	CheckConnections(timeout time.Duration) []ClientKey
+	CheckConnections() []string
+	MonitorConnections(timeout time.Duration)
 	UpdatePlayerActivity(key ClientKey) error
 	GetPlayerUsernamesAndScores() map[string]int
 }

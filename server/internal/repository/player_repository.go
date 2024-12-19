@@ -2,7 +2,10 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"hangman/internal/domain"
+	"io"
+	"net"
 	"sync"
 	"time"
 )
@@ -22,10 +25,16 @@ func (r *InMemoryPlayerRepository) AddPlayer(key domain.ClientKey, player *domai
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.players[key]; exists {
-		return errors.New("player already exists")
+	existingPlayer, exists := r.players[key]
+	if exists {
+		// Обновляем состояние существующего игрока
+		existingPlayer.Conn = player.Conn
+		existingPlayer.IsConnected = true
+		existingPlayer.LastActive = time.Now()
+		return nil
 	}
 
+	// Добавляем нового игрока
 	r.players[key] = player
 	return nil
 }
@@ -73,39 +82,48 @@ func (r *InMemoryPlayerRepository) GetPlayerCount() int {
 	return len(r.players)
 }
 
-func (r *InMemoryPlayerRepository) CheckConnections(timeout time.Duration) []domain.ClientKey {
-	now := time.Now()
-	var toRemove []domain.ClientKey // Список игроков для удаления
+func (r *InMemoryPlayerRepository) CheckConnections() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	// Чтение с RLock
-	r.mu.RLock()
+	var disconnectedPlayers []string
+
 	for key, player := range r.players {
-		if player.IsConnected {
-			// Отправляем пинг игроку
-			if _, err := player.Conn.Write([]byte("ping")); err != nil {
-				// Если соединение разорвано, помечаем как отключённого
-				player.IsConnected = false
-				player.LastActive = now
+		buffer := make([]byte, 1)
+		player.Conn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
+		_, err := player.Conn.Read(buffer)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+				// Добавляем имя отключенного игрока в список
+				disconnectedPlayers = append(disconnectedPlayers, player.Username)
+				delete(r.players, key)
+				fmt.Printf("Player %s disconnected\n", player.Username)
 			}
 		} else {
-			// Проверяем, истёк ли таймаут на реконнект
-			if now.Sub(player.LastActive) > timeout {
-				toRemove = append(toRemove, key)
-			}
+			// Если соединение активно, обновляем время последней активности
+			player.LastActive = time.Now()
 		}
 	}
-	r.mu.RUnlock()
 
-	// Удаление с Lock
-	r.mu.Lock()
-	for _, key := range toRemove {
-		player := r.players[key]
-		player.Conn.Close()
-		delete(r.players, key)
+	return disconnectedPlayers
+}
+
+func (r *InMemoryPlayerRepository) MonitorConnections(timeout time.Duration) {
+	ticker := time.NewTicker(timeout) // Интервал проверки
+	defer ticker.Stop()
+
+	for range ticker.C {
+		r.mu.Lock()
+		for key, player := range r.players {
+			if time.Since(player.LastActive) > 1*time.Minute {
+				// Слишком долго без активности
+				player.IsConnected = false
+				delete(r.players, key)
+				fmt.Printf("Removed inactive player: %s\n", player.Username)
+			}
+		}
+		r.mu.Unlock()
 	}
-	r.mu.Unlock()
-
-	return toRemove
 }
 
 func (r *InMemoryPlayerRepository) UpdatePlayerActivity(key domain.ClientKey) error {

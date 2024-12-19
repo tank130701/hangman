@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hangman/internal/errs"
+	"hangman/pkg/utils"
 	"net"
 
 	"google.golang.org/protobuf/proto"
@@ -153,7 +154,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 		s.logger.Error(fmt.Sprintf("Failed to serialize response: %v", err))
 		return CreateErrorResponse(5000, "Internal server error")
 	}
-	s.logger.Debug(fmt.Sprintf("Response: %s, Payload: %s", serverResp, responsePayload))
+	s.logger.Debug(fmt.Sprintf("Response: %s, Payload: %s", serverResp.Message, responsePayload))
 	return respBytes
 }
 
@@ -166,4 +167,30 @@ func CreateErrorResponse(code int32, msg string) []byte {
 
 	respBytes, _ := proto.Marshal(serverResp)
 	return respBytes
+}
+
+func Notify(event string, payload []byte, clients []net.Conn) {
+	localLogger := utils.NewCustomLogger(utils.LevelDebug)
+	for _, conn := range clients {
+		// Формируем сообщение
+		serverResp := &ServerResponse{
+			StatusCode: 2000,
+			Message:    event,
+			Payload:    payload,
+		}
+
+		// Сериализация ответа
+		respBytes, err := proto.Marshal(serverResp)
+		if err != nil {
+			localLogger.Error(fmt.Sprintf("Failed to serialize notification for %s: %v", conn.RemoteAddr().String(), err))
+			continue
+		}
+
+		// Отправка сообщения
+		if err := writeMessage(conn, respBytes); err != nil {
+			localLogger.Error(fmt.Sprintf("Failed to send notification to %s: %v", conn.RemoteAddr().String(), err))
+			continue
+		}
+		localLogger.Info(fmt.Sprintf("Notify: %s, Payload: %s", serverResp.Message, serverResp.Payload))
+	}
 }
