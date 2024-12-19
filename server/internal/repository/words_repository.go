@@ -10,7 +10,8 @@ import (
 
 // WordsRepository отвечает за хранение слов для игры.
 type WordsRepository struct {
-	categories map[string][]string
+	categories   map[string][]string
+	randomSource *rand.Rand // Генератор случайных чисел
 }
 
 // NewWordsRepository создает новый экземпляр WordsRepository и загружает слова из JSON-файла.
@@ -30,19 +31,20 @@ func NewWordsRepository(filePath string) (*WordsRepository, error) {
 		return nil, errors.New("no categories found in the file")
 	}
 
-	return &WordsRepository{categories: categories}, nil
+	return &WordsRepository{
+		categories:   categories,
+		randomSource: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}, nil
 }
 
 // GetRandomWord возвращает случайное слово из указанной категории.
 func (ws *WordsRepository) GetRandomWord(category string) (string, error) {
-	words, ok := ws.categories[category]
-	if !ok || len(words) == 0 {
-		return "", errors.New("category not found or empty")
+	words, err := ws.GetAllWords(category)
+	if err != nil {
+		return "", err
 	}
 
-	// Создаем локальный генератор случайных чисел
-	randomSource := rand.New(rand.NewSource(time.Now().UnixNano()))
-	index := randomSource.Intn(len(words))
+	index := ws.randomSource.Intn(len(words))
 
 	return words[index], nil
 }
