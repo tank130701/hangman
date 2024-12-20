@@ -1,12 +1,10 @@
 package domain
 
-import "time"
-
 type Game struct {
 	Word         string
 	GuessedWord  []rune
 	AttemptsLeft int
-	StartTime    time.Time
+	Score        int
 }
 
 func NewGame(word string, attempts int) *Game {
