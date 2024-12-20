@@ -25,7 +25,7 @@ type IRoomController interface {
 	CleanupRooms(timeoutSeconds int)
 	GetGameState(roomID string) (map[string]*GameState, error)
 	GetAllRooms() ([]*Room, error)
-	GetPlayerUsernamesAndScores() map[string]int
+	GetLeaderboard() (map[string]int, error)
 }
 
 type IPlayerRepository interface {

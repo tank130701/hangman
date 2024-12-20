@@ -214,16 +214,20 @@ public class PlayerScoreDTO
 
 public class GetLeaderBoardResponse
 {
+    [JsonPropertyName("players")]
     public PlayerScoreDTO[] Players { get; set; } // Используем массив
 }
 
 public class GetAllRoomsResponse
 {
+    [JsonPropertyName("rooms")]
     public RoomDTO[] Rooms { get; set; } // Используем массив
 }
 
 public class GameStartedEvent
 {
+    [JsonPropertyName("category")]
     public string Category { get; set; }
+    [JsonPropertyName("difficulty")]
     public string Difficulty { get; set; }
 }

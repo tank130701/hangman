@@ -327,6 +327,25 @@ func (rc *RoomController) GetAllRooms() ([]*domain.Room, error) {
 	return rc.roomRepo.GetAllRooms(), nil
 }
 
-func (rc *RoomController) GetPlayerUsernamesAndScores() map[string]int {
-	return rc.playersRepo.GetPlayerUsernamesAndScores()
+func (rc *RoomController) GetLeaderboard() (map[string]int, error) {
+	leaderboard := make(map[string]int)
+
+	// Получаем список всех комнат
+	rooms := rc.roomRepo.GetAllRooms()
+
+	// Проходимся по каждой комнате
+	for _, room := range rooms {
+		// Получаем состояния игры игроков в комнате
+		gameStates, err := rc.gameService.GetGameState(room)
+		if err != nil {
+			return nil, err
+		}
+
+		// Агрегируем результаты игроков в общий лидерборд
+		for username, playerGameState := range gameStates {
+			leaderboard[username] += playerGameState.Score
+		}
+	}
+
+	return leaderboard, nil
 }

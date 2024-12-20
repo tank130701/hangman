@@ -301,8 +301,10 @@ func (h *Handler) handleGetAllRoomsRequest(conn net.Conn, message []byte) ([]byt
 
 func (h *Handler) handleGetLeaderBoard(conn net.Conn, message []byte) ([]byte, error) {
 	// Получаем данные о пользователях и их очках
-	userScores := h.RoomController.GetPlayerUsernamesAndScores()
-
+	userScores, err := h.RoomController.GetLeaderboard()
+	if err != nil {
+		return nil, errs.NewError(tcp_server.StatusInternalServerError, "Failed to fetch Leaderboard")
+	}
 	// Формируем DTO
 	playerDTOs := make([]PlayerScoreDTO, 0, len(userScores))
 	for username, score := range userScores {

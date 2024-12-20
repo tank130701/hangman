@@ -102,6 +102,7 @@ namespace client.Presentation
                     if (IsGameOver(gameState, _gameDriver.GetCurrentPlayerUsername()))
                     {
                         Console.WriteLine("Game Over!");
+                        DisplayGameState(gameState, category);
                         break;
                     }
 
