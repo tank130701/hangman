@@ -69,7 +69,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		var response []byte
 		message, err := readMessage(conn)
 		if err != nil {
-			response = CreateErrorResponse(errs.ErrCodeInternalServerError, err.Error())
+			response = CreateErrorResponse(StatusInternalServerError, err.Error())
 		} else {
 			response = s.processMessage(message, conn)
 		}
@@ -116,7 +116,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	var clientMsg ClientMessage
 	if err := proto.Unmarshal(message, &clientMsg); err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to parse Protobuf message: %v", err))
-		return CreateErrorResponse(4000, "Invalid Protobuf format")
+		return CreateErrorResponse(StatusBadRequest, "Invalid Protobuf format")
 	}
 	s.logger.Info(fmt.Sprintf("Request: Command: %s, PayloadВize: %d bytes", clientMsg.Command, len(clientMsg.Payload)))
 	s.logger.Debug(fmt.Sprintf("Request: Command: %s, Payload: %s", clientMsg.Command, string(clientMsg.Payload)))
@@ -125,7 +125,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	handler, exists := s.handlers[clientMsg.Command]
 	if !exists {
 		s.logger.Error(fmt.Sprintf("Unknown command: %s", clientMsg.Command))
-		return CreateErrorResponse(4004, "Unknown command")
+		return CreateErrorResponse(StatusNotFound, "Unknown command")
 	}
 
 	// Обрабатываем полезную нагрузку
@@ -139,11 +139,11 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 
 		// Если ошибка неизвестного типа, возвращаем стандартный код
 		s.logger.Error(fmt.Sprintf("Unexpected error: %v", err))
-		return CreateErrorResponse(5000, "Internal server error")
+		return CreateErrorResponse(StatusInternalServerError, "Internal server error")
 	}
 	// Создаем ответ
 	serverResp := &ServerResponse{
-		StatusCode: 2000,
+		StatusCode: StatusSuccess,
 		Message:    "Success",
 		Payload:    responsePayload,
 	}
@@ -152,7 +152,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	respBytes, err := proto.Marshal(serverResp)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to serialize response: %v", err))
-		return CreateErrorResponse(5000, "Internal server error")
+		return CreateErrorResponse(StatusInternalServerError, "Internal server error")
 	}
 	s.logger.Debug(fmt.Sprintf("Response: %s, Payload: %s", serverResp.Message, responsePayload))
 	return respBytes

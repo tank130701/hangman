@@ -8,7 +8,6 @@ import (
 	"hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 	"os"
-	"time"
 )
 
 func main() {
@@ -50,9 +49,16 @@ func main() {
 	//}()
 
 	// Запуск мониторинга активности игроков (MonitorConnections)
+
+	// Канал для передачи информации о неактивных игроках
+	inactivePlayersChan := make(chan []string)
+	// Обработка сообщений из канала
 	go func() {
-		logger.Info("Player connection monitoring started")
-		playerRepo.MonitorConnections(300 * time.Second) // Удаляет игроков с истекшим таймаутом активности
+		for inactivePlayers := range inactivePlayersChan {
+			for _, player := range inactivePlayers {
+				logger.Warning(fmt.Sprintf("Player %s removed due to inactivity", player))
+			}
+		}
 	}()
 
 	// Создаём и запускаем TCP-сервер

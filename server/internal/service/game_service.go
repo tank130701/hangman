@@ -49,10 +49,9 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 
 // MakeGuess обрабатывает ход игрока
 func (gs *GameServiceImpl) MakeGuess(room *domain.Room, player *domain.Player, letter rune) (bool, string, error) {
+	room.UpdateActivity()
 	room.RLock()
 	defer room.RUnlock()
-	//room.UpdateActivity()
-
 	if room.StateManager == nil {
 		return false, "", errors.New("no game in this room")
 	}

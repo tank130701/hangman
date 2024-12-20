@@ -36,7 +36,7 @@ type IPlayerRepository interface {
 	GetAllPlayers() []*Player
 	GetPlayerCount() int
 	CheckConnections() []string
-	MonitorConnections(timeout time.Duration)
+	MonitorConnections(timeout time.Duration, inactivePlayersChan chan<- []string)
 	UpdatePlayerActivity(key ClientKey) error
 	GetPlayerUsernamesAndScores() map[string]int
 }
