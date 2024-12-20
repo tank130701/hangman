@@ -3,111 +3,188 @@ package service
 import (
 	"errors"
 	"hangman/internal/domain"
+	"hangman/internal/errs"
+	tcp "hangman/pkg/tcp-server"
+	"net"
 	"time"
 )
 
 type RoomController struct {
 	roomRepo    domain.IRoomRepository
-	playerRepo  domain.IPlayerRepository
 	gameService domain.IGameService
+	playersRepo domain.IPlayerRepository
 }
 
-func NewRoomController(roomRepo domain.IRoomRepository, playerRepo domain.IPlayerRepository, gameService domain.IGameService) *RoomController {
+func NewRoomController(
+	roomRepo domain.IRoomRepository,
+	playersRepo domain.IPlayerRepository,
+	gameService domain.IGameService,
+) *RoomController {
 	return &RoomController{
 		roomRepo:    roomRepo,
-		playerRepo:  playerRepo,
+		playersRepo: playersRepo,
 		gameService: gameService,
 	}
 }
 
-func (rc *RoomController) CreateRoom(player *domain.Player, roomID, password string) (*domain.Room, error) {
+func (rc *RoomController) CreateRoom(player string, roomID, password, category, difficulty string) (*domain.Room, error) {
 	room := &domain.Room{
-		ID:           roomID,
-		Owner:        player,
-		Players:      []*domain.Player{player},
+		ID:      roomID,
+		Owner:   &player,
+		Players: make(map[string]*domain.Player),
+		//StateManager: domain.NewGameStateManager(),
 		Password:     password,
+		Category:     category,
+		Difficulty:   difficulty,
 		LastActivity: time.Now(),
-		IsOpen:       true,
-		MaxPlayers:   5,
+		MaxPlayers:   3,
+		RoomState:    domain.Waiting,
 	}
 
 	if err := rc.roomRepo.AddRoom(room); err != nil {
 		return nil, err
 	}
 
-	if err := rc.playerRepo.AddPlayer(player); err != nil {
-		err = rc.roomRepo.RemoveRoom(roomID)
-		return nil, err
-	}
+	//err := rc.playersRepo.AddPlayer(player)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	return room, nil
 }
 
-func (rc *RoomController) JoinRoom(player *domain.Player, roomID, password string) (*domain.Room, error) {
+func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password string) (*domain.Room, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return nil, err
 	}
 
+	// Проверяем пароль
 	if room.Password != "" && room.Password != password {
-		return nil, errors.New("incorrect password")
+		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
 	}
 
-	room.Players = append(room.Players, player)
-	room.LastActivity = time.Now()
+	switch room.RoomState {
+	case domain.Waiting, domain.GameOver:
+		// Новый игрок может присоединиться
+		player := domain.NewPlayer(username, 0, conn)
+		connAddr := conn.RemoteAddr().String()
+		connIp, _, err := net.SplitHostPort(connAddr)
+		if err != nil {
+			return nil, err
+		}
 
-	if err := rc.playerRepo.AddPlayer(player); err != nil {
-		return nil, err
+		newClientKey := domain.NewClientKey(connIp, username, password)
+		// Добавляем игрока в репозиторий (логика AddPlayer обновит игрока, если он уже существует)
+		err = rc.playersRepo.AddPlayer(newClientKey, player)
+		if err != nil {
+			return nil, err
+		}
+
+		// Добавляем игрока в комнату, если его там еще нет
+		existsPlayer := room.HasPlayer(username)
+		if !existsPlayer {
+			room.AddPlayer(player)
+		}
+		return room, nil
+
+	case domain.InProgress:
+		// Только реконнект существующего игрока
+		existsPlayer := room.HasPlayer(username)
+		if !existsPlayer {
+			return nil, errs.NewError(tcp.StatusConflict, "game already in progress, new players cannot join")
+		}
+		connAddr := conn.RemoteAddr().String()
+		connIp, _, err := net.SplitHostPort(connAddr)
+		if err != nil {
+			return nil, err
+		}
+		clientKey := domain.NewClientKey(connIp, username, password)
+		existingPlayer, err := rc.playersRepo.GetPlayerByKey(clientKey)
+		if err != nil {
+			return nil, err
+		}
+		// Обновляем информацию о клиенте в playersRepo
+		err = rc.playersRepo.AddPlayer(clientKey, existingPlayer)
+		if err != nil {
+			return nil, err
+		}
+
+		return room, nil
+
+		//case domain.GameOver:
+		//	// Присоединение запрещено
+		//	return nil, errors.New("game is over, no players can join")
 	}
 
-	return room, nil
+	return nil, errs.NewError(tcp.StatusInternalServerError, "unknown room state")
 }
 
-func (rc *RoomController) LeaveRoom(player *domain.Player, roomID string) error {
+func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) error {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return err
 	}
-
-	// Удаляем игрока из комнаты
-	for i, p := range room.Players {
-		if p.Username == player.Username {
-			room.Players = append(room.Players[:i], room.Players[i+1:]...)
-			break
-		}
+	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return err
 	}
-
-	// Если игрок — владелец, переназначаем нового
-	if room.Owner.Username == player.Username && len(room.Players) > 0 {
-		room.Owner = room.Players[0]
+	room.RemovePlayer(player.Username)                           // Удаление из комнаты
+	err = rc.playersRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
+	if err != nil {
+		return err
 	}
-
-	// Удаляем комнату, если она пуста
-	if len(room.Players) == 0 {
-		rc.roomRepo.RemoveRoom(roomID)
-	}
-
-	rc.playerRepo.RemovePlayer(player.Username)
 	return nil
 }
 
-func (rc *RoomController) DeleteRoom(player *domain.Player, roomID string) error {
+func (rc *RoomController) DeleteRoom(clientKey domain.ClientKey, roomID string) error {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return err // Комната не найдена
 	}
 
-	// Проверяем, является ли пользователь владельцем комнаты
-	if room.Owner.Username != player.Username {
-		return errors.New("only the owner can delete the room")
+	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return err
 	}
 
+	// Проверяем, является ли пользователь владельцем комнаты
+	if *room.Owner != player.Username {
+		return errs.NewError(tcp.StatusUnauthorized, "only the owner can delete the room")
+	}
 	// Удаляем всех игроков из комнаты
-	for _, p := range room.Players {
-		rc.playerRepo.RemovePlayer(p.Username)
+	for _, player := range room.GetAllPlayers() {
+		err := rc.playersRepo.RemovePlayerByUsername(player)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Удаляем комнату из репозитория
+	if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rc *RoomController) forceDeleteRoom(roomID string) error {
+	room, err := rc.roomRepo.GetRoomByID(roomID)
+	if err != nil {
+		return err // Комната не найдена
+	}
+
+	room.RLock()
+	players := room.GetAllPlayers()
+	room.RUnlock()
+
+	for _, player := range players {
+		err := rc.playersRepo.RemovePlayerByUsername(player)
+		if err != nil {
+			return err
+		}
+	}
+
 	if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
 		return err
 	}
@@ -123,40 +200,73 @@ func (rc *RoomController) CleanupRooms(timeoutSeconds int) {
 		rooms := rc.roomRepo.GetAllRooms()
 		for _, room := range rooms {
 			if time.Since(room.LastActivity) > time.Duration(timeoutSeconds)*time.Second {
-				rc.roomRepo.RemoveRoom(room.ID)
+				rc.forceDeleteRoom(room.ID)
 			}
 		}
 	}
 }
 
-func (rc *RoomController) StartGame(player *domain.Player, roomID string) error {
+func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) error {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return err
 	}
-
-	if room.Owner.Username != player.Username {
-		return errors.New("only the owner can start the game")
+	//room.Lock()
+	//defer room.Unlock()
+	//if room.RoomState == domain.InProgress {
+	//	return errors.New("game already started")
+	//}
+	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return err
+	}
+	if *room.Owner != player.Username {
+		return errs.NewError(tcp.StatusUnauthorized, "only the owner can start the game")
 	}
 
 	return rc.gameService.StartGame(room)
 }
 
-func (rc *RoomController) MakeGuess(player *domain.Player, roomID string, letter rune) (bool, string, error) {
+func (rc *RoomController) MakeGuess(clientKey domain.ClientKey, roomID string, letter rune) (bool, string, error) {
+	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return false, "", err
+	}
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return false, "", err
 	}
-
+	err = rc.playersRepo.UpdatePlayerActivity(clientKey)
+	if err != nil {
+		return false, "", err
+	}
 	return rc.gameService.MakeGuess(room, player, letter)
 }
 
-func (rc *RoomController) GetGameState(roomID string) (*domain.GameState, error) {
+func (rc *RoomController) GetRoomState(roomID, password string) (*string, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return nil, err
 	}
+	// Проверяем пароль
+	if room.Password != "" && room.Password != password {
+		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
+	}
 
+	roomState := string(room.RoomState)
+	return &roomState, nil
+}
+
+func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameState, error) {
+	room, err := rc.roomRepo.GetRoomByID(roomID)
+	if err != nil {
+		return nil, err
+	}
+	// Проверяем, закончилась ли игра у всех игроков
+	err = rc.CheckAndSetGameOver(room)
+	if err != nil {
+		return nil, err
+	}
 	return rc.gameService.GetGameState(room)
 }
 
@@ -167,7 +277,7 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 	}
 
 	// Если в комнате никого не осталось, удаляем её
-	if len(room.Players) == 0 {
+	if room.GetPlayerCount() == 0 {
 		if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
 			return err
 		}
@@ -175,7 +285,7 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 	}
 
 	// Переназначаем владельца (первый оставшийся игрок становится владельцем)
-	room.Owner = room.Players[0]
+	room.Owner = &room.GetAllPlayers()[0]
 
 	// Обновляем комнату в репозитории
 	if err := rc.roomRepo.UpdateRoom(room); err != nil {
@@ -184,15 +294,39 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 
 	return nil
 }
+func (rc *RoomController) CheckAndSetGameOver(room *domain.Room) error {
+	// Проверяем, есть ли игроки в комнате
+	if room.GetPlayerCount() == 0 {
+		return errors.New("no players in the room")
+	}
 
-func (rc *RoomController) JoinRandomRoom(player *domain.Player) (*domain.Room, error) {
-	rooms := rc.roomRepo.GetAllRooms()
-
-	for _, room := range rooms {
-		if room.IsOpen && len(room.Players) < room.MaxPlayers {
-			return rc.JoinRoom(player, room.ID, "")
+	// Проверяем, у всех ли игроков игра закончилась
+	allGameOver := true
+	gameStates, err := rc.gameService.GetGameState(room)
+	if err != nil {
+		return err
+	}
+	for _, playerGameState := range gameStates {
+		if !playerGameState.IsGameOver { // Если хотя бы у одного игрока игра не закончилась
+			allGameOver = false
+			break
 		}
 	}
 
-	return nil, errors.New("no available rooms")
+	// Если все игроки завершили игру, переводим комнату в статус GameOver
+	if allGameOver {
+		room.RoomState = domain.GameOver
+		if err := rc.roomRepo.UpdateRoom(room); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+func (rc *RoomController) GetAllRooms() ([]*domain.Room, error) {
+	return rc.roomRepo.GetAllRooms(), nil
+}
+
+func (rc *RoomController) GetPlayerUsernamesAndScores() map[string]int {
+	return rc.playersRepo.GetPlayerUsernamesAndScores()
 }

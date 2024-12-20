@@ -1,21 +1,32 @@
 package tcp_server
 
 import (
-	"bufio"
-	"encoding/json"
-	"log"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"hangman/internal/errs"
+	"hangman/pkg/utils"
 	"net"
+
+	"google.golang.org/protobuf/proto"
 )
+
+type ILogger interface {
+	Info(msg string)
+	Warning(msg string)
+	Error(msg string)
+	Debug(msg string)
+}
 
 type Server struct {
 	address  string
 	handlers map[string]HandleFunc
 
-	logger *log.Logger
+	logger ILogger
 }
 
 // New создает новый сервер
-func New(address string, logger *log.Logger) *Server {
+func New(address string, logger ILogger) *Server {
 	return &Server{
 		address:  address,
 		handlers: make(map[string]HandleFunc),
@@ -25,8 +36,6 @@ func New(address string, logger *log.Logger) *Server {
 
 // RegisterHandler registers a handler for a specific command.
 func (s *Server) RegisterHandler(command string, handler HandleFunc) {
-	//s.mu.Lock()
-	//defer s.mu.Unlock()
 	s.handlers[command] = handler
 }
 
@@ -38,11 +47,11 @@ func (s *Server) Start() error {
 	}
 	defer listener.Close()
 
-	s.logger.Println("Server is listening on", s.address)
+	s.logger.Info(fmt.Sprintf("Server is listening on: %s", s.address))
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			s.logger.Println("Failed to accept connection:", err)
+			s.logger.Error(fmt.Sprintf("Failed to accept connection:%v", err))
 			continue
 		}
 
@@ -54,55 +63,134 @@ func (s *Server) Start() error {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	clientAddr := conn.RemoteAddr().String()
-	s.logger.Printf("New connection from %s", clientAddr)
-
-	reader := bufio.NewReader(conn)
+	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
 
 	for {
 		var response []byte
-		// conn.Write([]byte("Enter a JSON command:\n"))
-		message, err := reader.ReadString('\n')
+		message, err := readMessage(conn)
 		if err != nil {
-			response = CreateErrorResponse(ErrCodeInternalServerError, err.Error())
+			response = CreateErrorResponse(StatusInternalServerError, err.Error())
 		} else {
-			response = s.processMessage([]byte(message), conn)
+			response = s.processMessage(message, conn)
 		}
-		conn.Write(response)
-		conn.Write([]byte("\n"))
+		writeMessage(conn, response)
 	}
 }
 
-// processMessage обрабатывает JSON-команды
+func readMessage(conn net.Conn) ([]byte, error) {
+	// Чтение заголовка (4 байта)
+	header := make([]byte, 4)
+	if _, err := conn.Read(header); err != nil {
+		return nil, err
+	}
+
+	// Преобразование заголовка в длину сообщения
+	messageLength := int(binary.BigEndian.Uint32(header))
+
+	// Чтение тела сообщения
+	message := make([]byte, messageLength)
+	if _, err := conn.Read(message); err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+// writeMessage отправляет сообщение с заголовком длины
+func writeMessage(conn net.Conn, message []byte) error {
+	header := make([]byte, 4)
+	binary.BigEndian.PutUint32(header, uint32(len(message)))
+
+	if _, err := conn.Write(header); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(message); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
-	// Логируем входящий запрос
-	s.logger.Printf("Received message: %s", string(message))
+	// Парсим сообщение клиента
+	var clientMsg ClientMessage
+	if err := proto.Unmarshal(message, &clientMsg); err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to parse Protobuf message: %v", err))
+		return CreateErrorResponse(StatusBadRequest, "Invalid Protobuf format")
+	}
+	s.logger.Info(fmt.Sprintf("Request: Command: %s, PayloadВize: %d bytes", clientMsg.Command, len(clientMsg.Payload)))
+	s.logger.Debug(fmt.Sprintf("Request: Command: %s, Payload: %s", clientMsg.Command, string(clientMsg.Payload)))
 
-	var request BaseRequest
-	if err := json.Unmarshal(message, &request); err != nil {
-		errMessage := "Invalid JSON format"
-		s.logger.Printf("Error parsing request: %v", err)
-		return CreateErrorResponse(4000, errMessage)
+	// Ищем обработчик для команды
+	handler, exists := s.handlers[clientMsg.Command]
+	if !exists {
+		s.logger.Error(fmt.Sprintf("Unknown command: %s", clientMsg.Command))
+		return CreateErrorResponse(StatusNotFound, "Unknown command")
 	}
 
-	var response []byte
+	// Обрабатываем полезную нагрузку
+	responsePayload, err := handler(conn, clientMsg.Payload)
+	if err != nil {
+		var customErr *errs.Error
+		if errors.As(err, &customErr) {
+			s.logger.Error(fmt.Sprintf("Error in handler: %v", customErr))
+			return CreateErrorResponse(customErr.Code, customErr.Message)
+		}
 
-	handler, exists := s.handlers[request.Command]
-	if exists {
-		response = handler(conn, message)
-	} else {
-		unknownCommandMessage := "Unknown command"
-		s.logger.Printf("No handler for command: %s", request.Command)
-		return CreateErrorResponse(ErrCodeUnknownCommand, unknownCommandMessage)
+		// Если ошибка неизвестного типа, возвращаем стандартный код
+		s.logger.Error(fmt.Sprintf("Unexpected error: %v", err))
+		return CreateErrorResponse(StatusInternalServerError, "Internal server error")
+	}
+	// Создаем ответ
+	serverResp := &ServerResponse{
+		StatusCode: StatusSuccess,
+		Message:    "Success",
+		Payload:    responsePayload,
 	}
 
-	// Логируем ответ
-	var debugData map[string]interface{}
-	if err := json.Unmarshal(response, &debugData); err != nil {
-		s.logger.Printf("Failed to parse response JSON: %v", err)
-	} else {
-		prettyResponse, _ := json.MarshalIndent(debugData, "", "  ") // Форматирование JSON для читаемости
-		s.logger.Printf("Response JSON:\n%s", prettyResponse)
+	// Сериализация ответа
+	respBytes, err := proto.Marshal(serverResp)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to serialize response: %v", err))
+		return CreateErrorResponse(StatusInternalServerError, "Internal server error")
+	}
+	s.logger.Debug(fmt.Sprintf("Response: %s, Payload: %s", serverResp.Message, responsePayload))
+	return respBytes
+}
+
+// CreateErrorResponse формирует Protobuf-ответ с ошибкой
+func CreateErrorResponse(code int32, msg string) []byte {
+	serverResp := &ServerResponse{
+		StatusCode: code,
+		Message:    msg,
 	}
 
-	return response
+	respBytes, _ := proto.Marshal(serverResp)
+	return respBytes
+}
+
+func Notify(event string, payload []byte, clients []net.Conn) {
+	localLogger := utils.NewCustomLogger(utils.LevelDebug)
+	for _, conn := range clients {
+		// Формируем сообщение
+		serverResp := &ServerResponse{
+			StatusCode: 2000,
+			Message:    event,
+			Payload:    payload,
+		}
+
+		// Сериализация ответа
+		respBytes, err := proto.Marshal(serverResp)
+		if err != nil {
+			localLogger.Error(fmt.Sprintf("Failed to serialize notification for %s: %v", conn.RemoteAddr().String(), err))
+			continue
+		}
+
+		// Отправка сообщения
+		if err := writeMessage(conn, respBytes); err != nil {
+			localLogger.Error(fmt.Sprintf("Failed to send notification to %s: %v", conn.RemoteAddr().String(), err))
+			continue
+		}
+		localLogger.Info(fmt.Sprintf("Notify: %s, Payload: %s", serverResp.Message, serverResp.Payload))
+	}
 }

@@ -1,74 +1,84 @@
 package domain
 
 import (
-	"errors"
-	"time"
+	"fmt"
+	"sync"
 )
 
-type GameState string
+type PlayerUsername string
 
-const (
-	GameStateWaiting GameState = "WaitingForPlayers"
-	GameStatePlaying GameState = "InProgress"
-	GameStateOver    GameState = "GameOver"
-)
+type GameState struct {
+	WordProgress string // Текущее состояние слова (с угаданными буквами)
+	AttemptsLeft int    // Остаток попыток
+	IsGameOver   bool   // Статус завершения игры
+	Score        int    // Текущий счет игрока
+}
 
 type GameStateManager struct {
-	state GameState
-	game  *Game
+	games map[PlayerUsername]*Game
+	mu    sync.RWMutex // Для защиты карты игр
 }
 
-func NewGameStateManager(word string, attempts int) *GameStateManager {
+func NewGameStateManager() *GameStateManager {
 	return &GameStateManager{
-		state: GameStateWaiting,
-		game: &Game{
-			Word:         word,
-			GuessedWord:  make([]rune, len(word)),
-			AttemptsLeft: attempts,
-		},
+		games: make(map[PlayerUsername]*Game),
 	}
 }
 
-func (gsm *GameStateManager) GetState() GameState {
-	return gsm.state
+func (gsm *GameStateManager) AddGame(word string, username PlayerUsername, attempts int) {
+	gsm.mu.Lock()
+	defer gsm.mu.Unlock()
+	gsm.games[username] = NewGame(word, attempts)
 }
 
-func (gsm *GameStateManager) SetState(state GameState) {
-	gsm.state = state
-}
-
-func (gsm *GameStateManager) IsGameOver() bool {
-	return gsm.state == GameStateOver
-}
-
-func (gsm *GameStateManager) StartGame() error {
-	if gsm.state != GameStateWaiting {
-		return errors.New("game cannot be started in the current state")
+func (gsm *GameStateManager) GetState(username PlayerUsername) (GameState, error) {
+	gsm.mu.RLock()
+	defer gsm.mu.RUnlock()
+	game, exists := gsm.games[username]
+	if !exists {
+		return GameState{}, fmt.Errorf("no game found for username: %s", username)
 	}
-	gsm.state = GameStatePlaying
-	gsm.game.StartTime = time.Now()
-	return nil
+	return GameState{
+		WordProgress: game.DisplayWord(),
+		AttemptsLeft: game.AttemptsLeft,
+		IsGameOver:   game.IsWordGuessed() || game.AttemptsLeft <= 0,
+		Score:        game.Score,
+	}, nil
 }
 
-func (gsm *GameStateManager) MakeGuess(letter rune) (bool, string, error) {
-	if gsm.state != GameStatePlaying {
-		return false, "", errors.New("game is not in progress")
-	}
-
-	isCorrect := gsm.game.UpdateGuessedWord(letter)
-	if isCorrect && gsm.game.IsWordGuessed() {
-		gsm.state = GameStateOver
-		return true, "Congratulations! You guessed the word: " + gsm.game.Word, nil
+func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bool, string, error) {
+	gsm.mu.RLock()
+	defer gsm.mu.RUnlock()
+	game, exists := gsm.games[username]
+	if !exists {
+		return false, "", fmt.Errorf("no game found for username: %s", username)
 	}
 
-	if !isCorrect {
-		gsm.game.AttemptsLeft--
-		if gsm.game.AttemptsLeft <= 0 {
-			gsm.state = GameStateOver
-			return false, "Game Over! The word was: " + gsm.game.Word, nil
+	isCorrect := game.UpdateGuessedWord(letter)
+
+	// Правильный ответ
+	if isCorrect {
+		game.Score += 10 // Начислить очки за правильную букву
+
+		if game.IsWordGuessed() {
+			game.Score += 50 // Бонус за завершение слова
+			return true, "Congratulations! You guessed the word: " + game.Word, nil
 		}
-		return false, "Wrong guess!", nil
+
+		return true, "Correct guess!", nil
 	}
 
-	return true, "Correct guess!", nil
+	// Неправильный ответ
+	game.AttemptsLeft--
+	game.Score -= 5 // Штраф за неправильный ответ
+	if game.Score < 0 {
+		game.Score = 0 // Убедиться, что счет не становится отрицательным
+	}
+
+	// Проверить, закончились ли попытки
+	if game.AttemptsLeft <= 0 {
+		return false, "Game Over! The word was: " + game.Word, nil
+	}
+
+	return false, "Wrong guess!", nil
 }

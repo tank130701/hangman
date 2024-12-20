@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package tcp;
+
+option go_package = "tcp_server";
+
+// Сообщение клиента серверу
+message ClientMessage {
+  string command = 1;      // Команда
+  bytes payload = 2;       // Полезная нагрузка (сериализованный JSON или другое)
+}
+
+// Ответ от сервера клиенту
+message ServerResponse {
+  int32 status_code = 1;   // Код состояния (например, 2000 для успеха)
+  string message = 2;      // Текст сообщения
+  bytes payload = 3;       // Полезная нагрузка
+}
