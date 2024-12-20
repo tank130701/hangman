@@ -64,57 +64,59 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
 	}
 
+	// Получаем IP-адрес клиента
+	connAddr := conn.RemoteAddr().String()
+	connIp, _, err := net.SplitHostPort(connAddr)
+	if err != nil {
+		return nil, err
+	}
+	clientKey := domain.NewClientKey(connIp, username, password)
+
+	// Проверяем текущего игрока
+	existingPlayer := room.HasPlayer(username)
+
 	switch room.RoomState {
 	case domain.Waiting, domain.GameOver:
-		// Новый игрок может присоединиться
+		if !existingPlayer && room.GetPlayerCount() >= room.MaxPlayers {
+			// Если комната заполнена и это новый игрок
+			return nil, errs.NewError(tcp.StatusConflict, "room is full, cannot join")
+		}
+
+		// Новый или реконнект существующего игрока
 		player := domain.NewPlayer(username, 0, conn)
-		connAddr := conn.RemoteAddr().String()
-		connIp, _, err := net.SplitHostPort(connAddr)
+
+		// Добавляем/обновляем игрока в репозитории
+		err = rc.playersRepo.AddPlayer(clientKey, player)
 		if err != nil {
 			return nil, err
 		}
 
-		newClientKey := domain.NewClientKey(connIp, username, password)
-		// Добавляем игрока в репозиторий (логика AddPlayer обновит игрока, если он уже существует)
-		err = rc.playersRepo.AddPlayer(newClientKey, player)
-		if err != nil {
-			return nil, err
-		}
-
-		// Добавляем игрока в комнату, если его там еще нет
-		existsPlayer := room.HasPlayer(username)
-		if !existsPlayer {
+		// Если игрока еще нет в комнате, добавляем
+		if !existingPlayer {
 			room.AddPlayer(player)
 		}
+
 		return room, nil
 
 	case domain.InProgress:
 		// Только реконнект существующего игрока
-		existsPlayer := room.HasPlayer(username)
-		if !existsPlayer {
+		if !existingPlayer {
 			return nil, errs.NewError(tcp.StatusConflict, "game already in progress, new players cannot join")
 		}
-		connAddr := conn.RemoteAddr().String()
-		connIp, _, err := net.SplitHostPort(connAddr)
+
+		// Получаем информацию о существующем игроке
+		existingPlayerData, err := rc.playersRepo.GetPlayerByKey(clientKey)
 		if err != nil {
 			return nil, err
 		}
-		clientKey := domain.NewClientKey(connIp, username, password)
-		existingPlayer, err := rc.playersRepo.GetPlayerByKey(clientKey)
-		if err != nil {
-			return nil, err
-		}
-		// Обновляем информацию о клиенте в playersRepo
-		err = rc.playersRepo.AddPlayer(clientKey, existingPlayer)
+
+		// Обновляем информацию о клиенте в репозитории
+		err = rc.playersRepo.AddPlayer(clientKey, existingPlayerData)
 		if err != nil {
 			return nil, err
 		}
 
 		return room, nil
-
-		//case domain.GameOver:
-		//	// Присоединение запрещено
-		//	return nil, errors.New("game is over, no players can join")
 	}
 
 	return nil, errs.NewError(tcp.StatusInternalServerError, "unknown room state")
