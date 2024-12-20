@@ -1,4 +1,4 @@
-using client.Application;
+﻿using client.Application;
 using client.Infrastructure;
 using client.Menu;
 using client.Presentation;
@@ -15,7 +15,7 @@ namespace client
             string username = Console.ReadLine();
             const string serverAddress = "127.0.0.1"; // IP-адрес сервера
             const int serverPort = 8001; // Порт сервера
-
+           
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
             var gameService = new GameDriver(tcpClient, username);
             var gameUi = new GameUI(gameService);
@@ -30,7 +30,7 @@ namespace client
                 Environment.NewLine + "                    |___/                      ";
 
             Console.Clear();
-
+            
             // Создаем основное меню
             ConsoleMenu mainMenu = new ConsoleMenu("==>");
             mainMenu.Header = headerText;
