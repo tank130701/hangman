@@ -2,19 +2,24 @@
 using client.Infrastructure;
 using client.Menu;
 using client.Presentation;
+using System.Diagnostics;
 
 namespace client
 {
     class Program
     {
+        // Создание окна для логов
         static void Main(string[] args)
-        {   
+        {
+            Console.Write("Enter your username: ");
+            string username = Console.ReadLine();
             const string serverAddress = "127.0.0.1"; // IP-адрес сервера
             const int serverPort = 8001; // Порт сервера
+           
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
-            var gameService = new GameService(tcpClient);
+            var gameService = new GameDriver(tcpClient, username);
             var gameUi = new GameUI(gameService);
-            
+
             string headerText = "  _   _                                         " +
                 Environment.NewLine + " | | | |                                        " +
                 Environment.NewLine + " | |_| | __ _ _ __   __ _ _ __ ___   __ _ _ __ " +
@@ -25,7 +30,7 @@ namespace client
                 Environment.NewLine + "                    |___/                      ";
 
             Console.Clear();
-
+            
             // Создаем основное меню
             ConsoleMenu mainMenu = new ConsoleMenu("==>");
             mainMenu.Header = headerText;
@@ -33,9 +38,10 @@ namespace client
 
             // Добавляем пункты меню
             mainMenu.addMenuItem(0, "Create New Room", gameUi.CreateRoom);
-            mainMenu.addMenuItem(1, "Start New Game", gameUi.Start);
-            mainMenu.addMenuItem(2, "How to Play", ShowRules);
-            mainMenu.addMenuItem(3, "Exit", Exit);
+            mainMenu.addMenuItem(2, "Join to Room", gameUi.ShowAllRooms);
+            mainMenu.addMenuItem(3, "Show Leader Board", gameUi.ShowLeaderBoard);
+            mainMenu.addMenuItem(4, "How to Play", ShowRules);
+            mainMenu.addMenuItem(5, "Exit", Exit);
 
             // Отображаем меню
             mainMenu.showMenu();
@@ -47,7 +53,7 @@ namespace client
             Console.WriteLine("Thanks for playing!");
             Environment.Exit(0);
         }
-        
+
         // Функция отображения правил игры
         public static void ShowRules()
         {

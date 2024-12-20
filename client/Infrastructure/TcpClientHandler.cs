@@ -1,17 +1,22 @@
+using System;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using Google.Protobuf;
+using Tcp;
+using NLog;
 
 namespace client.Infrastructure
 {
     /// <summary>
-    /// Класс для работы с TCP-сервером, включая отправку и получение JSON-сообщений.
+    /// Класс для работы с TCP-сервером, включая отправку и получение сообщений с префиксом длины и Protobuf.
     /// </summary>
     public class TcpClientHandler : IDisposable
     {
+        private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
         private readonly TcpClient _client;
-        private readonly StreamReader _reader;
-        private readonly StreamWriter _writer;
+        private readonly NetworkStream _stream;
 
         /// <summary>
         /// Создает экземпляр TCP-клиента для подключения к серверу.
@@ -20,65 +25,153 @@ namespace client.Infrastructure
         /// <param name="port">Порт сервера.</param>
         public TcpClientHandler(string address, int port)
         {
-            _client = new TcpClient(address, port);
-            _reader = new StreamReader(_client.GetStream(), Encoding.UTF8);
-            _writer = new StreamWriter(_client.GetStream(), Encoding.UTF8) { AutoFlush = true };
-        }
-
-        /// <summary>
-        /// Отправляет объект в формате JSON на сервер.
-        /// </summary>
-        /// <param name="message">Объект для отправки.</param>
-        public void SendRequest<T>(T request)
-        {
             try
             {
-                string jsonRequest = JsonSerializer.Serialize(request);
-                _writer.WriteLine(jsonRequest);
-                Console.WriteLine($"Sent: {jsonRequest}");
+                _client = new TcpClient(address, port);
+                _stream = _client.GetStream();
+                Logger.Info($"Connected to server at {address}:{port}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error sending message: {ex.Message}");
+                Logger.Error(ex, "Failed to connect to the server");
                 throw;
             }
         }
 
         /// <summary>
-        /// Получает JSON-сообщение от сервера.
+        /// Сериализует объект в JSON-строку.
         /// </summary>
-        /// <returns>Ответ сервера в виде строки.</returns>
-        public string ReceiveMessage()
+        private static string SerializeToJson<T>(T obj)
+        {
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            };
+            return JsonSerializer.Serialize(obj, options);
+        }
+
+        /// <summary>
+        /// Десериализует JSON-строку в объект указанного типа.
+        /// </summary>
+        private static T DeserializePayload<T>(ByteString payload)
+        {
+            var jsonString = payload.ToStringUtf8();
+            Logger.Debug($"Deserializing payload: {jsonString}");
+            return JsonSerializer.Deserialize<T>(jsonString);
+        }
+
+        /// <summary>
+        /// Отправляет сообщение на сервер с префиксом длины.
+        /// </summary>
+        public void SendMessage(string command, string payload)
         {
             try
             {
-                string response = _reader.ReadLine();
-                Console.WriteLine($"Received: {response}");
-                return response;
+                var clientMessage = new ClientMessage
+                {
+                    Command = command,
+                    Payload = ByteString.CopyFromUtf8(payload)
+                };
+
+                // Подготовка данных
+                byte[] data = clientMessage.ToByteArray();
+                byte[] header = BitConverter.GetBytes(data.Length);
+
+                // Приведение к big-endian, если необходимо
+                if (BitConverter.IsLittleEndian)
+                    Array.Reverse(header);
+
+                // Отправка данных
+                _stream.Write(header, 0, header.Length);
+                _stream.Write(data, 0, data.Length);
+
+                Logger.Info($"Sent command: {command}, Payload: {payload}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error receiving message: {ex.Message}");
+                Logger.Error(ex, $"Error sending message: {command}");
                 throw;
             }
         }
 
         /// <summary>
-        /// Десериализует полученное JSON-сообщение в указанный тип.
+        /// Получает сообщение от сервера и десериализует его.
         /// </summary>
-        /// <typeparam name="T">Тип объекта для десериализации.</typeparam>
-        /// <param name="jsonMessage">JSON-сообщение.</param>
-        /// <returns>Десериализованный объект.</returns>
-        public T DeserializeMessage<T>(string jsonMessage)
+        public T ReadMessage<T>() where T : IMessage<T>, new()
         {
             try
             {
-                return JsonSerializer.Deserialize<T>(jsonMessage);
+                // Читаем заголовок (длина сообщения)
+                byte[] header = new byte[4];
+                _stream.Read(header, 0, header.Length);
+
+                if (BitConverter.IsLittleEndian)
+                    Array.Reverse(header);
+
+                int messageLength = BitConverter.ToInt32(header, 0);
+
+                // Читаем тело сообщения
+                byte[] body = new byte[messageLength];
+                int totalBytesRead = 0;
+                while (totalBytesRead < messageLength)
+                {
+                    totalBytesRead += _stream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                }
+
+                // Парсинг сообщения
+                var parser = new MessageParser<T>(() => new T());
+                T message = parser.ParseFrom(body);
+
+                Logger.Info($"Received message: {message}");
+                return message;
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                Console.WriteLine($"Error deserializing message: {ex.Message}");
+                Logger.Error(ex, "Error reading message from server");
                 throw;
+            }
+        }
+
+        public ServerResponse ReadMessageFromStream(NetworkStream stream)
+        {
+            try
+            {
+                // Читаем префикс длины (4 байта)
+                byte[] header = new byte[4];
+                int bytesRead = stream.Read(header, 0, header.Length);
+                if (bytesRead != header.Length)
+                {
+                    throw new Exception("Failed to read message length");
+                }
+
+                // Преобразуем заголовок в длину сообщения
+                if (BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(header);
+                }
+                int messageLength = BitConverter.ToInt32(header, 0);
+
+                // Читаем тело сообщения
+                byte[] body = new byte[messageLength];
+                bytesRead = 0;
+                while (bytesRead < messageLength)
+                {
+                    int chunkSize = stream.Read(body, bytesRead, messageLength - bytesRead);
+                    if (chunkSize == 0)
+                    {
+                        throw new Exception("Connection closed by server");
+                    }
+                    bytesRead += chunkSize;
+                }
+
+                // Десериализуем сообщение с помощью Protobuf
+                var serverResponse = ServerResponse.Parser.ParseFrom(body);
+                return serverResponse;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error reading message from stream: {ex.Message}", ex);
             }
         }
 
@@ -89,13 +182,13 @@ namespace client.Infrastructure
         {
             try
             {
-                _reader.Close();
-                _writer.Close();
-                _client.Close();
+                _stream?.Close();
+                _client?.Close();
+                Logger.Info("Connection closed.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error closing connection: {ex.Message}");
+                Logger.Error(ex, "Error closing connection");
             }
         }
 
@@ -105,6 +198,27 @@ namespace client.Infrastructure
         public void Dispose()
         {
             Close();
+        }
+        /// <summary>
+        /// Возвращает поток NetworkStream для прямого чтения/записи.
+        /// </summary>
+        public NetworkStream GetStream()
+        {
+            try
+            {
+                if (_stream == null || !_client.Connected)
+                {
+                    throw new InvalidOperationException("No active connection to the server.");
+                }
+
+                Logger.Info("Returning active NetworkStream.");
+                return _stream;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error returning NetworkStream.");
+                throw;
+            }
         }
     }
 }
