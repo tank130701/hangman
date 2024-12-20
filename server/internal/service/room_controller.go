@@ -129,11 +129,11 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 	if err != nil {
 		return err
 	}
-	room.RemovePlayer(player.Username)                           // Удаление из комнаты
-	err = rc.playersRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
-	if err != nil {
-		return err
-	}
+	room.RemovePlayer(player.Username) // Удаление из комнаты
+	//err = rc.playersRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
+	//if err != nil {
+	//	return err
+	//}
 	return nil
 }
 
@@ -328,24 +328,6 @@ func (rc *RoomController) GetAllRooms() ([]*domain.Room, error) {
 }
 
 func (rc *RoomController) GetLeaderboard() (map[string]int, error) {
-	leaderboard := make(map[string]int)
-
-	// Получаем список всех комнат
-	rooms := rc.roomRepo.GetAllRooms()
-
-	// Проходимся по каждой комнате
-	for _, room := range rooms {
-		// Получаем состояния игры игроков в комнате
-		gameStates, err := rc.gameService.GetGameState(room)
-		if err != nil {
-			return nil, err
-		}
-
-		// Агрегируем результаты игроков в общий лидерборд
-		for username, playerGameState := range gameStates {
-			leaderboard[username] += playerGameState.Score
-		}
-	}
-
+	leaderboard := rc.playersRepo.GetPlayerUsernamesAndScores()
 	return leaderboard, nil
 }

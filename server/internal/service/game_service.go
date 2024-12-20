@@ -56,7 +56,7 @@ func (gs *GameServiceImpl) MakeGuess(room *domain.Room, player *domain.Player, l
 		return false, "", errors.New("no game in this room")
 	}
 
-	return room.StateManager.MakeGuess(domain.PlayerUsername(player.Username), letter)
+	return room.StateManager.MakeGuess(player, letter)
 }
 
 // GetGameState возвращает текущее состояние игры для всех игроков в комнате

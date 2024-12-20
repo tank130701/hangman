@@ -46,12 +46,12 @@ func (gsm *GameStateManager) GetState(username PlayerUsername) (GameState, error
 	}, nil
 }
 
-func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bool, string, error) {
+func (gsm *GameStateManager) MakeGuess(player *Player, letter rune) (bool, string, error) {
 	gsm.mu.RLock()
 	defer gsm.mu.RUnlock()
-	game, exists := gsm.games[username]
+	game, exists := gsm.games[PlayerUsername(player.Username)]
 	if !exists {
-		return false, "", fmt.Errorf("no game found for username: %s", username)
+		return false, "", fmt.Errorf("no game found for username: %s", player.Username)
 	}
 
 	isCorrect := game.UpdateGuessedWord(letter)
@@ -59,9 +59,10 @@ func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bo
 	// Правильный ответ
 	if isCorrect {
 		game.Score += 10 // Начислить очки за правильную букву
-
+		player.Score += 10
 		if game.IsWordGuessed() {
 			game.Score += 50 // Бонус за завершение слова
+			player.Score += 50
 			return true, "Congratulations! You guessed the word: " + game.Word, nil
 		}
 
@@ -71,6 +72,7 @@ func (gsm *GameStateManager) MakeGuess(username PlayerUsername, letter rune) (bo
 	// Неправильный ответ
 	game.AttemptsLeft--
 	game.Score -= 5 // Штраф за неправильный ответ
+	player.Score -= 5
 	if game.Score < 0 {
 		game.Score = 0 // Убедиться, что счет не становится отрицательным
 	}
