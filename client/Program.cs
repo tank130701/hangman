@@ -11,9 +11,15 @@ namespace client
         // Создание окна для логов
         static void Main(string[] args)
         {
-            Console.Write("Enter your username: ");
-            string username = Console.ReadLine();
-            const string serverAddress = "127.0.0.1"; // IP-адрес сервера
+            Console.Clear();
+            // Создаем экземпляр класса InputHandler
+            InputHandler inputHandler = new InputHandler();
+
+            // Получаем имя пользователя и адрес сервера
+            string username = inputHandler.GetValidatedUsername();
+            string serverAddress = inputHandler.GetValidatedServerAddress();
+
+            Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
            
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
