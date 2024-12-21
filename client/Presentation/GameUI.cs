@@ -13,7 +13,7 @@ namespace client.Presentation
         private readonly IGameDriver _gameDriver;
         private HangmanDisplay _hangmanDisplay;
         private string _roomPassword;
-
+        private JoinRoomResponse _room = null;
         public GameUI(IGameDriver gameDriver)
         {
             _gameDriver = gameDriver;
@@ -315,7 +315,7 @@ namespace client.Presentation
                 while (room.RoomState == "WaitingForPlayers" || room.RoomState == "GameOver" || room.Owner == _gameDriver.GetCurrentPlayerUsername())
                 {
                     // Запрашиваем актуальное состояние комнаты через JoinRoom
-                    room = _gameDriver.JoinRoom(room.Id, room.Password);
+                    _room = _gameDriver.JoinRoom(room.Id, room.Password);
 
                     // Отображаем текущее состояние комнаты
                     Console.Clear();
@@ -329,20 +329,20 @@ namespace client.Presentation
                         Console.WriteLine($"- {player.Username}");
                     }
 
-                    if (room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                    if (_room.Owner == _gameDriver.GetCurrentPlayerUsername())
                     {
                         Console.WriteLine("[S] Start Game");
                         Console.WriteLine("[D] Delete Room");
                         Console.WriteLine("[Q] Quit to Main Menu");
                     }
 
-                    if (room.RoomState == "InProgress")
+                    if (_room.RoomState == "InProgress")
                     {
                         Console.WriteLine("[R] Reconnect to game");
                     }
-                    if (room.Owner != _gameDriver.GetCurrentPlayerUsername() && (room.RoomState == "WaitingForPlayers" || room.RoomState == "GameOver"))
+                    if (_room.Owner != _gameDriver.GetCurrentPlayerUsername() && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
                     {
-                        PollGameState(room.Id, room.Category, room.Password);
+                        PollGameState(_room.Id, _room.Category, _room.Password);
                     }
                     // Console.WriteLine("Waiting for the game to start... Press [Q] to leave.");
 
@@ -353,19 +353,19 @@ namespace client.Presentation
 
                         if (key == ConsoleKey.Q)
                         {
-                            _gameDriver.LeaveFromRoom(room.Id, room.Password);
+                            _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
                             Console.WriteLine("Left the room. Returning to main menu...");
                             ShowAllRooms();
                             return;
                         }
 
-                        if (key == ConsoleKey.S && room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                        if (key == ConsoleKey.S && _room.Owner == _gameDriver.GetCurrentPlayerUsername())
                         {
-                            StartGame(room.Id, room.Password, room.Category);
+                            StartGame(_room.Id, _room.Password, _room.Category);
                             return;
                         }
 
-                        if (key == ConsoleKey.D && room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                        if (key == ConsoleKey.D && _room.Owner == _gameDriver.GetCurrentPlayerUsername())
                         {
                             DeleteRoom(room.Id);
                             return;
@@ -377,10 +377,10 @@ namespace client.Presentation
                 }
 
                 // Если игра началась, переходим к её процессу
-                if (room.RoomState == "InProgress")
+                if (_room.RoomState == "InProgress")
                 {
                     Console.WriteLine("The game has started!");
-                    PlayGame(room.Id, room.Password, room.Category);
+                    PlayGame(_room.Id, _room.Password, _room.Category);
                 }
             }
             catch (Exception ex)
@@ -433,60 +433,79 @@ namespace client.Presentation
         {
             Console.WriteLine("Waiting for the game to start...");
             Console.WriteLine("Press 'Q' at any time to leave the room.");
-
-            //while (true)
-            //{
-            try
+            Console.Clear();
+            // ShowRoom(room);
+            while (true)
             {
-                // Проверяем ввод пользователя
-                if (Console.KeyAvailable)
+                try
                 {
-                    var key = Console.ReadKey(intercept: true);
+                    // Запрашиваем актуальное состояние комнаты через JoinRoom
+                    _room = _gameDriver.JoinRoom(roomId, password);
 
-                    // Если нажата клавиша 'Q'
-                    if (key.Key == ConsoleKey.Q)
+                    // Отображаем текущее состояние комнаты
+                    Console.Clear();
+                    Console.WriteLine($"=== Room: {_room.Id} ===");
+                    Console.WriteLine($"Owner: {_room.Owner}");
+                    Console.WriteLine("Players:");
+
+                    var players = _room.Players;
+                    foreach (var player in players)
                     {
-                        Console.WriteLine("\n'Q' detected. Leaving the room...");
-                        _gameDriver.LeaveFromRoom(roomId, password);
-                        ShowAllRooms();
-                        //break; // Прерываем цикл
+                        Console.WriteLine($"- {player.Username}");
+                    }
+
+                    Console.WriteLine("[Q] Quit to Main Menu");
+                    
+                    
+                    // Проверяем ввод пользователя
+                    if (Console.KeyAvailable)
+                    {
+                        var key = Console.ReadKey(intercept: true);
+
+                        // Если нажата клавиша 'Q'
+                        if (key.Key == ConsoleKey.Q)
+                        {
+                            Console.WriteLine("\n'Q' detected. Leaving the room...");
+                            _gameDriver.LeaveFromRoom(roomId, password);
+                            ShowAllRooms();
+                            break; // Прерываем цикл
+                        }
+                    }
+
+                    // Обрабатываем события от сервера
+                    var serverResponse = _gameDriver.TryToGeServerEvent();
+
+                    if (serverResponse == null)
+                    {
+                        Console.WriteLine("No meaningful response from the server. Retrying...");
+                        Thread.Sleep(1000); // Пауза перед повторной попыткой
+                        continue;
+                    }
+
+                    if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
+                    {
+                        Console.WriteLine("Received empty payload. Retrying...");
+                        Thread.Sleep(1000);
+                        continue;
+                    }
+
+                    if (serverResponse.Message == "GameStarted")
+                    {
+                        var gameStartedEvent = JsonSerializer.Deserialize<GameStartedEvent>(serverResponse.Payload.ToStringUtf8());
+                        Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
+                        PlayGame(roomId, category, password);
+                        break; // Завершаем цикл после начала игры
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Received unexpected event: {serverResponse.Message}");
                     }
                 }
-
-                // Обрабатываем события от сервера
-                var serverResponse = _gameDriver.TryToGeServerEvent();
-
-                if (serverResponse == null)
+                catch (Exception ex)
                 {
-                    Console.WriteLine("No meaningful response from the server. Retrying...");
-                    //Thread.Sleep(100); // Пауза перед повторной попыткой
-                    //continue;
-                }
-
-                if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
-                {
-                    Console.WriteLine("Received empty payload. Retrying...");
-                    //Thread.Sleep(100);
-                    //continue;
-                }
-
-                if (serverResponse.Message == "GameStarted")
-                {
-                    var gameStartedEvent = JsonSerializer.Deserialize<GameStartedEvent>(serverResponse.Payload.ToStringUtf8());
-                    Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
-                    PlayGame(roomId, category, password);
-                    //break; // Завершаем цикл после начала игры
-                }
-                else
-                {
-                    Console.WriteLine($"Received unexpected event: {serverResponse.Message}");
+                    Console.WriteLine($"Error during polling: {ex.Message}");
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during polling: {ex.Message}");
-            }
-            //}
 
             //Console.WriteLine("Polling stopped. Returning to the main menu...");
         }
