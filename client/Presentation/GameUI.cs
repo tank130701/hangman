@@ -344,7 +344,7 @@ namespace client.Presentation
                     {
                         PollGameState(room.Id, room.Category, room.Password);
                     }
-                    Console.WriteLine("Waiting for the game to start... Press [Q] to leave.");
+                    // Console.WriteLine("Waiting for the game to start... Press [Q] to leave.");
 
                     // Проверяем ввод пользователя
                     if (Console.KeyAvailable)
@@ -356,6 +356,7 @@ namespace client.Presentation
                             _gameDriver.LeaveFromRoom(room.Id, room.Password);
                             Console.WriteLine("Left the room. Returning to main menu...");
                             ShowAllRooms();
+                            return;
                         }
 
                         if (key == ConsoleKey.S && room.Owner == _gameDriver.GetCurrentPlayerUsername())
@@ -431,7 +432,7 @@ namespace client.Presentation
         private void PollGameState(string roomId, string category, string password)
         {
             Console.WriteLine("Waiting for the game to start...");
-            //Console.WriteLine("Press 'Q' at any time to leave the room.");
+            Console.WriteLine("Press 'Q' at any time to leave the room.");
 
             //while (true)
             //{
