@@ -14,6 +14,7 @@ namespace client.Presentation
         private HangmanDisplay _hangmanDisplay;
         private string _roomPassword;
         private JoinRoomResponse _room = null;
+        private bool _isRunning = true; // Флаг для завершения работы
         public GameUI(IGameDriver gameDriver)
         {
             _gameDriver = gameDriver;
@@ -312,7 +313,7 @@ namespace client.Presentation
 
             try
             {
-                while (room.RoomState == "WaitingForPlayers" || room.RoomState == "GameOver" || room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                while (room.RoomState == "WaitingForPlayers" || room.RoomState == "GameOver" || room.Owner == _gameDriver.GetCurrentPlayerUsername() || _isRunning)
                 {
                     // Запрашиваем актуальное состояние комнаты через JoinRoom
                     _room = _gameDriver.JoinRoom(room.Id, room.Password);
@@ -382,6 +383,7 @@ namespace client.Presentation
                     Console.WriteLine("The game has started!");
                     PlayGame(_room.Id, _room.Password, _room.Category);
                 }
+                ShowAllRooms();
             }
             catch (Exception ex)
             {
@@ -429,13 +431,31 @@ namespace client.Presentation
 
             Console.WriteLine("\n"); // Добавляем перенос строки после всех игроков
         }
+        
         private void PollGameState(string roomId, string category, string password)
         {
             Console.WriteLine("Waiting for the game to start...");
             Console.WriteLine("Press 'Q' at any time to leave the room.");
             Console.Clear();
+            Task.Run(() =>
+            {
+                while (_isRunning)
+                {
+                    if (Console.KeyAvailable)
+                    {
+                        var key = Console.ReadKey(intercept: true).Key;
+
+                        if (key == ConsoleKey.Q)
+                        {
+                            Console.WriteLine("\n'Q' detected. Leaving the room...");
+                            _isRunning = false; // Устанавливаем флаг завершения
+                        }
+                    }
+                    Thread.Sleep(100); // Предотвращаем перегрузку CPU
+                }
+            });
             // ShowRoom(room);
-            while (true)
+            while (_isRunning)
             {
                 try
                 {
@@ -458,19 +478,19 @@ namespace client.Presentation
                     
                     
                     // Проверяем ввод пользователя
-                    if (Console.KeyAvailable)
-                    {
-                        var key = Console.ReadKey(intercept: true);
+                    // if (Console.KeyAvailable)
+                    // {
+                    //     var key = Console.ReadKey(intercept: true);
 
-                        // Если нажата клавиша 'Q'
-                        if (key.Key == ConsoleKey.Q)
-                        {
-                            Console.WriteLine("\n'Q' detected. Leaving the room...");
-                            _gameDriver.LeaveFromRoom(roomId, password);
-                            ShowAllRooms();
-                            break; // Прерываем цикл
-                        }
-                    }
+                    //     // Если нажата клавиша 'Q'
+                    //     if (key.Key == ConsoleKey.Q)
+                    //     {
+                    //         Console.WriteLine("\n'Q' detected. Leaving the room...");
+                    //         _gameDriver.LeaveFromRoom(roomId, password);
+                    //         ShowAllRooms();
+                    //         break; // Прерываем цикл
+                    //     }
+                    // }
 
                     // Обрабатываем события от сервера
                     var serverResponse = _gameDriver.TryToGeServerEvent();
@@ -506,7 +526,7 @@ namespace client.Presentation
                     Console.WriteLine($"Error during polling: {ex.Message}");
                 }
             }
-
+            ShowAllRooms();
             //Console.WriteLine("Polling stopped. Returning to the main menu...");
         }
 
