@@ -13,13 +13,13 @@ namespace client
         {
             Console.Clear();
             // Создаем экземпляр класса InputHandler
-            // InputHandler inputHandler = new InputHandler();
+            InputHandler inputHandler = new InputHandler();
 
             // // Получаем имя пользователя и адрес сервера
-            // string username = inputHandler.GetValidatedUsername();
+            string username = inputHandler.GetValidatedUsername();
             // string serverAddress = inputHandler.GetValidatedServerAddress();
 
-            string username = "test";
+            // string username = "test";
             string serverAddress = "127.0.0.1";
 
 
