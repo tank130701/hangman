@@ -122,12 +122,14 @@ namespace client.Application
         /// </summary>
         /// <param name="serverResponse">Ответ сервера в формате protobuf.</param>
         /// <returns>Объект GameStartedEvent.</returns>
-        public ServerResponse TryToGeServerEvent()
+        /// 
+
+        public async Task<ServerResponse> TryToGetServerEventAsync()
         {
             try
             {
-                // Читаем сообщение из потока
-                var serverResponse = _clientHandler.ReadMessageFromStream(_clientHandler.GetStream());
+                // Читаем сообщение из потока асинхронно
+                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetStream());
                 // Если сообщение значимое, возвращаем его
                 return serverResponse;
             }
@@ -137,6 +139,7 @@ namespace client.Application
                 throw;
             }
         }
+
 
         /// <summary>
         /// Отправляет сообщение с командой и возвращает десериализованный ответ.

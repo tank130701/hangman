@@ -133,13 +133,13 @@ namespace client.Infrastructure
             }
         }
 
-        public ServerResponse ReadMessageFromStream(NetworkStream stream)
+        public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream)
         {
             try
             {
-                // Читаем префикс длины (4 байта)
+                // Читаем префикс длины (4 байта) асинхронно
                 byte[] header = new byte[4];
-                int bytesRead = stream.Read(header, 0, header.Length);
+                int bytesRead = await stream.ReadAsync(header, 0, header.Length);
                 if (bytesRead != header.Length)
                 {
                     throw new Exception("Failed to read message length");
@@ -152,12 +152,12 @@ namespace client.Infrastructure
                 }
                 int messageLength = BitConverter.ToInt32(header, 0);
 
-                // Читаем тело сообщения
+                // Читаем тело сообщения асинхронно
                 byte[] body = new byte[messageLength];
                 bytesRead = 0;
                 while (bytesRead < messageLength)
                 {
-                    int chunkSize = stream.Read(body, bytesRead, messageLength - bytesRead);
+                    int chunkSize = await stream.ReadAsync(body, bytesRead, messageLength - bytesRead);
                     if (chunkSize == 0)
                     {
                         throw new Exception("Connection closed by server");

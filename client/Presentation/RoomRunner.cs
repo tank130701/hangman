@@ -13,10 +13,9 @@ public class RoomRunner
         _gameDriver = gameDriver;
         _gameUi = new GameProcessUI(gameDriver);
     }
-    public void ShowRoom()
+    public async Task ShowRoomAsync(CancellationTokenSource cts)
     {
-        // Создаем CancellationTokenSource
-        var cts = new CancellationTokenSource();
+        
         Console.Clear();
         Console.WriteLine($"=== Room: {_room.Id} ===");
         Console.WriteLine($"Owner: {_room.Owner}");
@@ -28,27 +27,7 @@ public class RoomRunner
             {
                 // Проверяем, был ли отменен токен
                 cts.Token.ThrowIfCancellationRequested();
-                Task.Run(() =>
-                    {
-                        while (true)
-                        {
-                            // Проверяем, доступна ли клавиша
-                            if (Console.KeyAvailable)
-                            {
-                                var key = Console.ReadKey(true); // true - не выводить нажатую клавишу в консоль
-                                if (key.Key == ConsoleKey.Q)
-                                {
-                                    cts.Cancel(); // Отменяем токен
-                                    Console.WriteLine("\n'Q' detected. Leaving the room...");
-                                    _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                                    // ShowAllRooms();
-                                    return;
-                                    // break; // Выходим из цикла
-                                }
-                            }
-                            Thread.Sleep(100); // Небольшая задержка, чтобы не нагружать процессор
-                        }
-                    });
+
                 // Запрашиваем актуальное состояние комнаты через JoinRoom
                 _room = _gameDriver.JoinRoom(_room.Id, _room.Password);
 
@@ -75,37 +54,38 @@ public class RoomRunner
                 {
                     Console.WriteLine("[R] Reconnect to game");
                 }
+
                 if (_room.Owner != _gameDriver.GetCurrentPlayerUsername() && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
                 {
                     Console.WriteLine("Waiting for the game to start...");
-                    // Запускаем бесконечный цикл
                     try
                     {
-                        _gameUi.PollGameState(cts.Token, _room.Id, _room.Category, _room.Password).Wait();
+                        await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password);
                     }
-                    catch (AggregateException ex) when (ex.InnerException is OperationCanceledException)
+                    catch (OperationCanceledException)
                     {
-                        Console.WriteLine("Waiting canceld");
+                        Console.WriteLine("Waiting canceled");
                     }
-
                 }
+
                 Console.WriteLine("Waiting for the game to start... Press [Q] to leave.");
 
-                // Проверяем ввод пользователя
+                // Обработка ввода пользователя
                 if (Console.KeyAvailable)
                 {
                     var key = Console.ReadKey(intercept: true).Key;
 
-                    // if (key == ConsoleKey.Q)
-                    // {
-                    //     _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                    //     Console.WriteLine("Left the room. Returning to main menu...");
-                    //     // ShowAllRooms();
-                    // }
+                    if (key == ConsoleKey.Q)
+                    {
+                        cts.Cancel(); // Отменяем токен
+                        _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
+                        Console.WriteLine("Left the room. Returning to main menu...");
+                        return; // Выходим из метода
+                    }
 
                     if (key == ConsoleKey.S && _room.Owner == _gameDriver.GetCurrentPlayerUsername())
                     {
-                        StartGame(_room.Id, _room.Password, _room.Category);
+                        StartGame(cts, _room.Id, _room.Password, _room.Category);
                         return;
                     }
 
@@ -117,7 +97,7 @@ public class RoomRunner
                 }
 
                 // Пауза перед повторным запросом состояния комнаты
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
             }
 
             // Если игра началась, переходим к её процессу
@@ -134,8 +114,9 @@ public class RoomRunner
             Console.ReadKey(true);
         }
     }
+
     // Запуск игры
-    private void StartGame(string roomId, string password, string category)
+    private void StartGame(CancellationTokenSource cts, string roomId, string password, string category)
     {
         Console.Clear();
         Console.WriteLine($"=== Connecting to Room: {roomId} ===");
@@ -147,7 +128,7 @@ public class RoomRunner
             _gameUi.PlayGame(roomId, category, password);
             var room = _gameDriver.JoinRoom(roomId, password);
             var roomRunner = new RoomRunner(_gameDriver, room);
-            roomRunner.ShowRoom();
+            roomRunner.ShowRoomAsync(cts).Wait();
         }
         catch (Exception ex)
         {

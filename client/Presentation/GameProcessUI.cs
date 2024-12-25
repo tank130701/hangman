@@ -123,29 +123,29 @@ public class GameProcessUI
         Console.ReadKey(true);
     }
 
-
-    public async Task PollGameState(CancellationToken token, string roomId, string category, string password)
+    public async Task PollGameStateAsync(CancellationToken token, string roomId, string category, string password)
     {
-        while (true)
+        while (!token.IsCancellationRequested)
         {
             // Проверяем, был ли отменен токен
             token.ThrowIfCancellationRequested();
+
             try
             {
-                // Обрабатываем события от сервера
-                var serverResponse = _gameDriver.TryToGeServerEvent();
+                // Обрабатываем события от сервера асинхронно
+                var serverResponse = await _gameDriver.TryToGetServerEventAsync();
 
                 if (serverResponse == null)
                 {
                     Console.WriteLine("No meaningful response from the server. Retrying...");
-                    await Task.Delay(100); // Пауза перед повторной попыткой
+                    await Task.Delay(100, token); // Пауза перед повторной попыткой с учетом токена
                     continue;
                 }
 
                 if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
                 {
                     Console.WriteLine("Received empty payload. Retrying...");
-                    await Task.Delay(100);
+                    await Task.Delay(100, token);
                     continue;
                 }
 
@@ -161,6 +161,11 @@ public class GameProcessUI
                     Console.WriteLine($"Received unexpected event: {serverResponse.Message}");
                 }
             }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Polling was canceled.");
+                break; // Выход из цикла при отмене
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error during polling: {ex.Message}");
@@ -169,5 +174,4 @@ public class GameProcessUI
 
         Console.WriteLine("Polling stopped. Returning to the main menu...");
     }
-
 }

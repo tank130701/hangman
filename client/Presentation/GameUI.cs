@@ -62,7 +62,7 @@ public class GameUI
 
         Console.WriteLine("Press any key to return to the main menu.");
         Console.ReadKey(true);
-    }  
+    }
 
     // Выбор категории
     private string ChooseCategory()
@@ -127,6 +127,27 @@ public class GameUI
     // Отображение всех комнат
     public void ShowAllRooms()
     {
+        // Создаем CancellationTokenSource
+        var cts = new CancellationTokenSource();
+        // Запускаем задачу для отслеживания нажатия клавиши
+        Task.Run(() =>
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                // Проверяем, доступна ли клавиша
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(true); // true - не выводить нажатую клавишу в консоль
+                    if (key.Key == ConsoleKey.Q)
+                    {
+                        cts.Cancel(); // Отменяем токен
+                        Console.WriteLine("Цикл будет прерван по нажатию клавиши Q.");
+                        break; // Выходим из цикла
+                    }
+                }
+                Thread.Sleep(100); // Небольшая задержка, чтобы не нагружать процессор
+            }
+        });
         while (true)
         {
             Console.Clear();
@@ -183,7 +204,8 @@ public class GameUI
                     Console.WriteLine("Press any key to return to the main menu.");
                     Console.ReadKey(true);
                     var roomRunner = new RoomRunner(_gameDriver, room);
-                    roomRunner.ShowRoom();
+
+                    roomRunner.ShowRoomAsync(cts).Wait();
                     break;
                 }
                 catch (Exception ex)
