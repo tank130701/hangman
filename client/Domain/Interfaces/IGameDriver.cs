@@ -15,6 +15,6 @@ namespace client.Domain.Interfaces
         GetAllRoomsResponse GetAllRooms();
         GetLeaderBoardResponse GetLeaderBoard();
         Stream GetRoomStream();
-        Task<ServerResponse> TryToGetServerEventAsync();
+        Task<ServerResponse> TryToGetServerEventAsync(CancellationToken cancellationToken);
     }
 }

@@ -15,8 +15,10 @@ namespace client.Infrastructure
     public class TcpClientHandler : IDisposable
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly TcpClient _client;
-        private readonly NetworkStream _stream;
+        private TcpClient _client;
+        private NetworkStream _stream;
+        private readonly string _address;
+        private readonly int _port;
 
         /// <summary>
         /// Создает экземпляр TCP-клиента для подключения к серверу.
@@ -25,18 +27,33 @@ namespace client.Infrastructure
         /// <param name="port">Порт сервера.</param>
         public TcpClientHandler(string address, int port)
         {
+            _address = address;
+            _port = port;
+            Connect(); // Инициализация соединения при создании
+        }
+
+        /// <summary>
+        /// Устанавливает соединение с сервером.
+        /// </summary>
+        public void Connect()
+        {
             try
             {
-                _client = new TcpClient(address, port);
+                // Закрываем старое соединение, если оно существует
+                CloseConnection();
+
+                // Создаем новое подключение
+                _client = new TcpClient(_address, _port);
                 _stream = _client.GetStream();
-                Logger.Info($"Connected to server at {address}:{port}");
+                Logger.Info($"Connected to server at {_address}:{_port}");
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to connect to the server");
-                throw;
+                throw new Exception("Failed to connect to the server", ex);
             }
         }
+
 
         /// <summary>
         /// Сериализует объект в JSON-строку.
@@ -133,16 +150,16 @@ namespace client.Infrastructure
             }
         }
 
-        public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream)
+        public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream, CancellationToken cancellationToken)
         {
             try
             {
-                // Читаем префикс длины (4 байта) асинхронно
+                // Читаем префикс длины (4 байта)
                 byte[] header = new byte[4];
-                int bytesRead = await stream.ReadAsync(header, 0, header.Length);
-                if (bytesRead != header.Length)
+                int headerRead = await ReadWithCancellationAsync(stream, header, 0, header.Length, cancellationToken);
+                if (headerRead != header.Length)
                 {
-                    throw new Exception("Failed to read message length");
+                    throw new Exception("Failed to read message length.");
                 }
 
                 // Преобразуем заголовок в длину сообщения
@@ -152,22 +169,27 @@ namespace client.Infrastructure
                 }
                 int messageLength = BitConverter.ToInt32(header, 0);
 
-                // Читаем тело сообщения асинхронно
+                // Читаем тело сообщения
                 byte[] body = new byte[messageLength];
-                bytesRead = 0;
+                int bytesRead = 0;
                 while (bytesRead < messageLength)
                 {
-                    int chunkSize = await stream.ReadAsync(body, bytesRead, messageLength - bytesRead);
-                    if (chunkSize == 0)
+                    int chunkRead = await ReadWithCancellationAsync(stream, body, bytesRead, messageLength - bytesRead, cancellationToken);
+                    if (chunkRead == 0 && cancellationToken.IsCancellationRequested)
                     {
-                        throw new Exception("Connection closed by server");
+                        // Отмена чтения, но соединение остаётся открытым
+                        throw new OperationCanceledException("Read operation canceled.");
                     }
-                    bytesRead += chunkSize;
+                    bytesRead += chunkRead;
                 }
 
-                // Десериализуем сообщение с помощью Protobuf
-                var serverResponse = ServerResponse.Parser.ParseFrom(body);
-                return serverResponse;
+                // Десериализация
+                return ServerResponse.Parser.ParseFrom(body);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Operation was canceled, keeping connection alive.");
+                throw;
             }
             catch (Exception ex)
             {
@@ -175,10 +197,38 @@ namespace client.Infrastructure
             }
         }
 
+        private async Task<int> ReadWithCancellationAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var readTask = stream.ReadAsync(buffer, offset, count, linkedCts.Token);
+            try
+            {
+                // Ждём завершения чтения или отмены
+                var completedTask = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                if (completedTask == readTask)
+                {
+                    return await readTask; // Успешное чтение
+                }
+
+                // Если задача отменена, выбрасываем исключение
+                linkedCts.Cancel(); // Сигнализируем об отмене
+                throw new OperationCanceledException("Operation canceled by token.");
+            }
+            catch (OperationCanceledException)
+            {
+                // В случае отмены возвращаем 0 байт для корректного поведения цикла
+                return 0;
+            }
+            catch (Exception)
+            {
+                // Пробрасываем исключения, кроме отмены
+                throw;
+            }
+        }
         /// <summary>
-        /// Закрывает соединение с сервером.
+        /// Закрывает текущее соединение.
         /// </summary>
-        public void Close()
+        private void CloseConnection()
         {
             try
             {
@@ -192,12 +242,13 @@ namespace client.Infrastructure
             }
         }
 
+
         /// <summary>
         /// Реализация IDisposable для автоматического освобождения ресурсов.
         /// </summary>
         public void Dispose()
         {
-            Close();
+            CloseConnection();
         }
         /// <summary>
         /// Возвращает поток NetworkStream для прямого чтения/записи.
@@ -206,10 +257,10 @@ namespace client.Infrastructure
         {
             try
             {
-                if (_stream == null || !_client.Connected)
-                {
-                    throw new InvalidOperationException("No active connection to the server.");
-                }
+                // if (_stream == null || !_client.Connected)
+                // {
+                //     throw new InvalidOperationException("No active connection to the server.");
+                // }
 
                 Logger.Info("Returning active NetworkStream.");
                 return _stream;

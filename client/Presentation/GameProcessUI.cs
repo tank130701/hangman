@@ -125,28 +125,28 @@ public class GameProcessUI
 
     public async Task PollGameStateAsync(CancellationToken token, string roomId, string category, string password)
     {
-        while (!token.IsCancellationRequested)
+        // while (!token.IsCancellationRequested)
         {
             // Проверяем, был ли отменен токен
-            token.ThrowIfCancellationRequested();
+            // token.ThrowIfCancellationRequested();
 
             try
             {
                 // Обрабатываем события от сервера асинхронно
-                var serverResponse = await _gameDriver.TryToGetServerEventAsync();
+                var serverResponse = await _gameDriver.TryToGetServerEventAsync(token);
 
                 if (serverResponse == null)
                 {
                     Console.WriteLine("No meaningful response from the server. Retrying...");
                     await Task.Delay(100, token); // Пауза перед повторной попыткой с учетом токена
-                    continue;
+                    // continue;
                 }
 
                 if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
                 {
                     Console.WriteLine("Received empty payload. Retrying...");
                     await Task.Delay(100, token);
-                    continue;
+                    // continue;
                 }
 
                 if (serverResponse.Message == "GameStarted")
@@ -154,7 +154,7 @@ public class GameProcessUI
                     var gameStartedEvent = JsonSerializer.Deserialize<GameStartedEvent>(serverResponse.Payload.ToStringUtf8());
                     Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
                     PlayGame(roomId, category, password);
-                    break; // Завершаем цикл после начала игры
+                    // break; // Завершаем цикл после начала игры
                 }
                 else
                 {
@@ -164,7 +164,7 @@ public class GameProcessUI
             catch (OperationCanceledException)
             {
                 Console.WriteLine("Polling was canceled.");
-                break; // Выход из цикла при отмене
+                // break; // Выход из цикла при отмене
             }
             catch (Exception ex)
             {

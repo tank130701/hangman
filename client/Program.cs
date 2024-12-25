@@ -27,6 +27,7 @@ namespace client
             const int serverPort = 8001; // Порт сервера
            
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
+            // tcpClient.Connect();
             var gameService = new GameDriver(tcpClient, username);
             var gameUi = new GameUI(gameService);
 

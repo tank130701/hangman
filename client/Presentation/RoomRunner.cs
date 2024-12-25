@@ -15,7 +15,7 @@ public class RoomRunner
     }
     public async Task ShowRoomAsync(CancellationTokenSource cts)
     {
-        
+
         Console.Clear();
         Console.WriteLine($"=== Room: {_room.Id} ===");
         Console.WriteLine($"Owner: {_room.Owner}");
@@ -64,7 +64,9 @@ public class RoomRunner
                     }
                     catch (OperationCanceledException)
                     {
+                        _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
                         Console.WriteLine("Waiting canceled");
+                        return;
                     }
                 }
 

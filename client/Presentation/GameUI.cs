@@ -132,7 +132,7 @@ public class GameUI
         // Запускаем задачу для отслеживания нажатия клавиши
         Task.Run(() =>
         {
-            while (!cts.Token.IsCancellationRequested)
+            while (true)
             {
                 // Проверяем, доступна ли клавиша
                 if (Console.KeyAvailable)
@@ -141,18 +141,18 @@ public class GameUI
                     if (key.Key == ConsoleKey.Q)
                     {
                         cts.Cancel(); // Отменяем токен
-                        Console.WriteLine("Цикл будет прерван по нажатию клавиши Q.");
-                        break; // Выходим из цикла
+                        // Console.WriteLine("Цикл будет прерван по нажатию клавиши Q.");
+                        // break; // Выходим из цикла
                     }
                 }
-                Thread.Sleep(100); // Небольшая задержка, чтобы не нагружать процессор
+                Thread.Sleep(1000); // Небольшая задержка, чтобы не нагружать процессор
             }
         });
         while (true)
         {
             Console.Clear();
             Console.WriteLine("=== Available Rooms ===");
-
+            cts = new CancellationTokenSource();
             RoomDTO[] rooms;
             try
             {

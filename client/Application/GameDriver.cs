@@ -124,19 +124,29 @@ namespace client.Application
         /// <returns>Объект GameStartedEvent.</returns>
         /// 
 
-        public async Task<ServerResponse> TryToGetServerEventAsync()
+        public async Task<ServerResponse> TryToGetServerEventAsync(CancellationToken cancellationToken)
         {
-            try
+            while (true)
             {
-                // Читаем сообщение из потока асинхронно
-                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetStream());
-                // Если сообщение значимое, возвращаем его
-                return serverResponse;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reading message from stream: {ex.Message}");
-                throw;
+                cancellationToken.ThrowIfCancellationRequested(); // Проверяем токен отмены
+
+                try
+                {
+                    // Читаем сообщение из потока асинхронно
+                    var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetStream(), cancellationToken);
+                    return serverResponse; // Если успешно, возвращаем сообщение
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Operation was canceled.");
+                    throw; // Пробрасываем исключение отмены
+                }
+              
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Unexpected error: {ex.Message}");
+                    throw; // Пробрасываем другие исключения
+                }
             }
         }
 
