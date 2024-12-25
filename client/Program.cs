@@ -13,11 +13,15 @@ namespace client
         {
             Console.Clear();
             // Создаем экземпляр класса InputHandler
-            InputHandler inputHandler = new InputHandler();
+            // InputHandler inputHandler = new InputHandler();
 
-            // Получаем имя пользователя и адрес сервера
-            string username = inputHandler.GetValidatedUsername();
-            string serverAddress = inputHandler.GetValidatedServerAddress();
+            // // Получаем имя пользователя и адрес сервера
+            // string username = inputHandler.GetValidatedUsername();
+            // string serverAddress = inputHandler.GetValidatedServerAddress();
+
+            string username = "test";
+            string serverAddress = "127.0.0.1";
+
 
             Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
