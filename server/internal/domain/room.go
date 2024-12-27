@@ -55,14 +55,6 @@ func (r *Room) KickPlayer(username string) {
 	defer r.Unlock()
 
 	if player, exists := r.Players[username]; exists {
-		// Извлекаем логгер из контекста
-		logger, ok := player.Ctx.Value("logger").(tcp_server.ILogger)
-		if ok {
-			logger.Info(fmt.Sprintf("Player %s is being kicked from the room", username))
-		} else {
-			fmt.Printf("Player %s is being kicked from the room (logger not found)\n", username)
-		}
-
 		// Извлекаем функцию отмены контекста
 		cancel, ok := player.Ctx.Value("cancel").(context.CancelFunc)
 		if ok {
