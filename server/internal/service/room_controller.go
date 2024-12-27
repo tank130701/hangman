@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"hangman/internal/domain"
 	"hangman/internal/errs"
@@ -11,18 +12,18 @@ import (
 
 type RoomController struct {
 	roomRepo    domain.IRoomRepository
+	playerRepo  domain.IPlayerRepository
 	gameService domain.IGameService
-	playersRepo domain.IPlayerRepository
 }
 
 func NewRoomController(
 	roomRepo domain.IRoomRepository,
-	playersRepo domain.IPlayerRepository,
+	playerRepo domain.IPlayerRepository,
 	gameService domain.IGameService,
 ) *RoomController {
 	return &RoomController{
 		roomRepo:    roomRepo,
-		playersRepo: playersRepo,
+		playerRepo:  playerRepo,
 		gameService: gameService,
 	}
 }
@@ -45,7 +46,7 @@ func (rc *RoomController) CreateRoom(player string, roomID, password, category, 
 		return nil, err
 	}
 
-	//err := rc.playersRepo.AddPlayer(player)
+	//err := rc.playerRepo.AddPlayer(player)
 	//if err != nil {
 	//	return nil, err
 	//}
@@ -53,7 +54,7 @@ func (rc *RoomController) CreateRoom(player string, roomID, password, category, 
 	return room, nil
 }
 
-func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password string) (*domain.Room, error) {
+func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, password string) (*domain.Room, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return nil, err
@@ -63,14 +64,7 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 	if room.Password != "" && room.Password != password {
 		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
 	}
-
-	// Получаем IP-адрес клиента
-	connAddr := conn.RemoteAddr().String()
-	connIp, _, err := net.SplitHostPort(connAddr)
-	if err != nil {
-		return nil, err
-	}
-	clientKey := domain.NewClientKey(connIp, username, password)
+	clientKey := domain.NewClientKey(username, password)
 
 	// Проверяем текущего игрока
 	existingPlayer := room.HasPlayer(username)
@@ -82,11 +76,12 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 			return nil, errs.NewError(tcp.StatusConflict, "room is full, cannot join")
 		}
 
+		conn := ctx.Value("conn").(net.Conn)
 		// Новый или реконнект существующего игрока
-		player := domain.NewPlayer(username, 0, conn)
+		player := domain.NewPlayer(ctx, &conn, username, 0)
 
 		// Добавляем/обновляем игрока в репозитории
-		err = rc.playersRepo.AddPlayer(clientKey, player)
+		err = rc.playerRepo.AddPlayer(clientKey, player)
 		if err != nil {
 			return nil, err
 		}
@@ -94,6 +89,7 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
+			room.MonitorContext(ctx, username)
 		}
 
 		return room, nil
@@ -105,13 +101,13 @@ func (rc *RoomController) JoinRoom(conn net.Conn, username, roomID, password str
 		}
 
 		// Получаем информацию о существующем игроке
-		existingPlayerData, err := rc.playersRepo.GetPlayerByKey(clientKey)
+		existingPlayerData, err := rc.playerRepo.GetPlayerByKey(clientKey)
 		if err != nil {
 			return nil, err
 		}
 
 		// Обновляем информацию о клиенте в репозитории
-		err = rc.playersRepo.AddPlayer(clientKey, existingPlayerData)
+		err = rc.playerRepo.AddPlayer(clientKey, existingPlayerData)
 		if err != nil {
 			return nil, err
 		}
@@ -127,12 +123,12 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 	if err != nil {
 		return err
 	}
-	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err
 	}
-	room.RemovePlayer(player.Username) // Удаление из комнаты
-	//err = rc.playersRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
+	room.KickPlayer(player.Username) // Удаление из комнаты
+	//err = rc.playerRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
 	//if err != nil {
 	//	return err
 	//}
@@ -145,7 +141,7 @@ func (rc *RoomController) DeleteRoom(clientKey domain.ClientKey, roomID string) 
 		return err // Комната не найдена
 	}
 
-	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err
 	}
@@ -156,7 +152,7 @@ func (rc *RoomController) DeleteRoom(clientKey domain.ClientKey, roomID string) 
 	}
 	// Удаляем всех игроков из комнаты
 	for _, player := range room.GetAllPlayers() {
-		err := rc.playersRepo.RemovePlayerByUsername(player)
+		err := rc.playerRepo.RemovePlayerByUsername(player)
 		if err != nil {
 			return err
 		}
@@ -181,7 +177,7 @@ func (rc *RoomController) forceDeleteRoom(roomID string) error {
 	room.RUnlock()
 
 	for _, player := range players {
-		err := rc.playersRepo.RemovePlayerByUsername(player)
+		err := rc.playerRepo.RemovePlayerByUsername(player)
 		if err != nil {
 			return err
 		}
@@ -218,7 +214,7 @@ func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) e
 	//if room.RoomState == domain.InProgress {
 	//	return errors.New("game already started")
 	//}
-	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err
 	}
@@ -230,7 +226,7 @@ func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) e
 }
 
 func (rc *RoomController) MakeGuess(clientKey domain.ClientKey, roomID string, letter rune) (bool, string, error) {
-	player, err := rc.playersRepo.GetPlayerByKey(clientKey)
+	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return false, "", err
 	}
@@ -238,7 +234,7 @@ func (rc *RoomController) MakeGuess(clientKey domain.ClientKey, roomID string, l
 	if err != nil {
 		return false, "", err
 	}
-	err = rc.playersRepo.UpdatePlayerActivity(clientKey)
+	err = rc.playerRepo.UpdatePlayerActivity(clientKey)
 	if err != nil {
 		return false, "", err
 	}
@@ -269,18 +265,17 @@ func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameSt
 	if err != nil {
 		return nil, err
 	}
+	err = rc.HandleOwnerChange(room)
+	if err != nil {
+		return nil, err
+	}
 	return rc.gameService.GetGameState(room)
 }
 
-func (rc *RoomController) HandleOwnerChange(roomID string) error {
-	room, err := rc.roomRepo.GetRoomByID(roomID)
-	if err != nil {
-		return err // Комната не найдена
-	}
-
+func (rc *RoomController) HandleOwnerChange(room *domain.Room) error {
 	// Если в комнате никого не осталось, удаляем её
 	if room.GetPlayerCount() == 0 {
-		if err := rc.roomRepo.RemoveRoom(roomID); err != nil {
+		if err := rc.roomRepo.RemoveRoom(room.ID); err != nil {
 			return err
 		}
 		return nil
@@ -296,6 +291,7 @@ func (rc *RoomController) HandleOwnerChange(roomID string) error {
 
 	return nil
 }
+
 func (rc *RoomController) CheckAndSetGameOver(room *domain.Room) error {
 	// Проверяем, есть ли игроки в комнате
 	if room.GetPlayerCount() == 0 {
@@ -330,6 +326,6 @@ func (rc *RoomController) GetAllRooms() ([]*domain.Room, error) {
 }
 
 func (rc *RoomController) GetLeaderboard() (map[string]int, error) {
-	leaderboard := rc.playersRepo.GetPlayerUsernamesAndScores()
+	leaderboard := rc.playerRepo.GetPlayerUsernamesAndScores()
 	return leaderboard, nil
 }

@@ -1,9 +1,11 @@
 package domain
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	tcp_server "hangman/pkg/tcp-server"
+	"hangman/pkg/utils"
 	"net"
 	"sync"
 	"time"
@@ -18,9 +20,10 @@ const (
 )
 
 type Room struct {
-	ID           string
-	Owner        *string
-	Players      map[string]*Player // Используем map для хранения игроков
+	ID      string
+	Owner   *string
+	Players map[string]*Player // Используем map для хранения игроков
+	//Connections  map[string]*net.Conn // Используем map для хранения соединений
 	LastActivity time.Time
 	MaxPlayers   int
 	Password     string
@@ -29,6 +32,47 @@ type Room struct {
 	StateManager *GameStateManager
 	RoomState    roomState
 	mu           sync.RWMutex
+}
+
+func (r *Room) MonitorContext(ctx context.Context, username string) {
+	go func() {
+		<-ctx.Done() // Ожидаем отмены контекста
+
+		// Извлекаем логгер из контекста
+		logger, ok := ctx.Value("logger").(utils.Logger) // Предполагаем, что у вас есть интерфейс Logger
+		if ok {
+			logger.Info(fmt.Sprintf("Player %s: context canceled, kicking from room", username))
+		} else {
+			fmt.Printf("Player %s: context canceled, kicking from room (logger not found)\n", username)
+		}
+
+		// Кикаем игрока
+		r.KickPlayer(username)
+	}()
+}
+
+func (r *Room) KickPlayer(username string) {
+	r.Lock()
+	defer r.Unlock()
+
+	if player, exists := r.Players[username]; exists {
+		// Извлекаем логгер из контекста
+		logger, ok := player.Ctx.Value("logger").(utils.Logger)
+		if ok {
+			logger.Info(fmt.Sprintf("Player %s is being kicked from the room", username))
+		} else {
+			fmt.Printf("Player %s is being kicked from the room (logger not found)\n", username)
+		}
+
+		// Извлекаем функцию отмены контекста
+		cancel, ok := player.Ctx.Value("cancel").(context.CancelFunc)
+		if ok {
+			cancel() // Отменяем контекст
+		}
+
+		// Удаляем игрока из комнаты
+		delete(r.Players, username)
+	}
 }
 
 func (r *Room) SetState(state roomState) {
@@ -76,15 +120,6 @@ func (r *Room) AddPlayer(player *Player) {
 	}
 
 	r.Players[player.Username] = player
-}
-
-func (r *Room) RemovePlayer(username string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.Players != nil {
-		delete(r.Players, username) // Удаление игрока из map
-	}
 }
 
 func (r *Room) HasPlayer(username string) bool {
@@ -138,7 +173,9 @@ func (r *Room) NotifyPlayers(event string, payload GameStartedPayload) error {
 
 	for _, player := range r.Players {
 		if player.IsConnected && player.Username != *r.Owner {
-			clients = append(clients, player.Conn)
+			if player.Conn != nil {
+				clients = append(clients, *player.Conn)
+			}
 		}
 	}
 

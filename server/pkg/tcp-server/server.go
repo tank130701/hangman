@@ -1,6 +1,7 @@
 package tcp_server
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -65,13 +66,25 @@ func (s *Server) handleConnection(conn net.Conn) {
 	clientAddr := conn.RemoteAddr().String()
 	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
 
+	// Создаём контекст с функцией отмены
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Пробрасываем соединение, логгер и функцию отмены в контекст
+	ctx = context.WithValue(ctx, "conn", conn)
+	ctx = context.WithValue(ctx, "logger", s.logger)
+	ctx = context.WithValue(ctx, "cancel", cancel)
+
 	for {
 		var response []byte
 		message, err := readMessage(conn)
 		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to read message: %v", err))
 			response = CreateErrorResponse(StatusInternalServerError, err.Error())
+			cancel()
+			break
 		} else {
-			response = s.processMessage(message, conn)
+			response = s.processMessage(ctx, message)
 		}
 		writeMessage(conn, response)
 	}
@@ -111,7 +124,7 @@ func writeMessage(conn net.Conn, message []byte) error {
 	return nil
 }
 
-func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
+func (s *Server) processMessage(ctx context.Context, message []byte) []byte {
 	// Парсим сообщение клиента
 	var clientMsg ClientMessage
 	if err := proto.Unmarshal(message, &clientMsg); err != nil {
@@ -129,7 +142,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	}
 
 	// Обрабатываем полезную нагрузку
-	responsePayload, err := handler(conn, clientMsg.Payload)
+	responsePayload, err := handler(ctx, clientMsg.Payload)
 	if err != nil {
 		var customErr *errs.Error
 		if errors.As(err, &customErr) {
