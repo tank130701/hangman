@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	tcp_server "hangman/pkg/tcp-server"
-	"hangman/pkg/utils"
 	"net"
 	"sync"
 	"time"
@@ -39,7 +38,7 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		<-ctx.Done() // Ожидаем отмены контекста
 
 		// Извлекаем логгер из контекста
-		logger, ok := ctx.Value("logger").(utils.Logger) // Предполагаем, что у вас есть интерфейс Logger
+		logger, ok := ctx.Value("logger").(tcp_server.ILogger) // Предполагаем, что у вас есть интерфейс Logger
 		if ok {
 			logger.Info(fmt.Sprintf("Player %s: context canceled, kicking from room", username))
 		} else {
@@ -57,7 +56,7 @@ func (r *Room) KickPlayer(username string) {
 
 	if player, exists := r.Players[username]; exists {
 		// Извлекаем логгер из контекста
-		logger, ok := player.Ctx.Value("logger").(utils.Logger)
+		logger, ok := player.Ctx.Value("logger").(tcp_server.ILogger)
 		if ok {
 			logger.Info(fmt.Sprintf("Player %s is being kicked from the room", username))
 		} else {
@@ -146,11 +145,6 @@ func (r *Room) GetAllPlayers() []string {
 		players = append(players, username)
 	}
 	return players
-}
-
-type GameStartedEvent struct {
-	Event   string             `json:"event"`   // Тип события
-	Payload GameStartedPayload `json:"payload"` // Данные события
 }
 
 type GameStartedPayload struct {
