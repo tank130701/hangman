@@ -128,100 +128,101 @@ public class GameUI
     public void ShowAllRooms()
     {
         // Создаем CancellationTokenSource
-        var cts = new CancellationTokenSource();
-        // Запускаем задачу для отслеживания нажатия клавиши
-        Task.Run(() =>
+        using (var cts = new CancellationTokenSource())
         {
-            while (true)
+            // Запускаем задачу для отслеживания нажатия клавиши
+            Task.Run(() =>
             {
-                // Проверяем, доступна ли клавиша
-                if (Console.KeyAvailable)
+                while (true)
                 {
-                    var key = Console.ReadKey(true); // true - не выводить нажатую клавишу в консоль
-                    if (key.Key == ConsoleKey.Q)
+                    // Проверяем, доступна ли клавиша
+                    if (Console.KeyAvailable)
                     {
-                        cts.Cancel(); // Отменяем токен
-                        // Console.WriteLine("Цикл будет прерван по нажатию клавиши Q.");
-                        // break; // Выходим из цикла
+                        var key = Console.ReadKey(true); // true - не выводить нажатую клавишу в консоль
+                        if (key.Key == ConsoleKey.Q)
+                        {
+                            cts.Cancel(); // Отменяем токен
+                            // Console.WriteLine("Цикл будет прерван по нажатию клавиши Q.");
+                            break; // Выходим из цикла
+                        }
                     }
+                    Thread.Sleep(1000); // Небольшая задержка, чтобы не нагружать процессор
                 }
-                Thread.Sleep(1000); // Небольшая задержка, чтобы не нагружать процессор
-            }
-        });
-        while (true)
-        {
-            Console.Clear();
-            Console.WriteLine("=== Available Rooms ===");
-            cts = new CancellationTokenSource();
-            RoomDTO[] rooms;
-            try
+            });
+            while (!cts.Token.IsCancellationRequested)
             {
-                var roomsResponse = _gameDriver.GetAllRooms();
-                rooms = roomsResponse.Rooms;
-
-                if (rooms.Length == 0)
+                Console.Clear();
+                Console.WriteLine("=== Available Rooms ===");
+                RoomDTO[] rooms;
+                try
                 {
-                    Console.WriteLine("No rooms available.");
+                    var roomsResponse = _gameDriver.GetAllRooms();
+                    rooms = roomsResponse.Rooms;
+
+                    if (rooms.Length == 0)
+                    {
+                        Console.WriteLine("No rooms available.");
+                        Console.WriteLine("Press any key to return to the main menu.");
+                        Console.ReadKey(true);
+                        return;
+                    }
+
+                    ConsoleMenu roomMenu = new ConsoleMenu("==>");
+                    roomMenu.Header = "=== Choose a Room ===";
+
+                    RoomDTO? selectedRoom = null; // Variable to hold the selected room
+
+                    // Populate the menu with available rooms
+                    for (int i = 0; i < rooms.Length; i++)
+                    {
+                        var room = rooms[i];
+                        roomMenu.addMenuItem(i + 1, $"Room ID: {room.Id}, Owner: {room.Owner}, Players: {room.PlayersCount}/{room.MaxPlayers}", () => { selectedRoom = room; roomMenu.hideMenu(); });
+                    }
+
+                    // Add a back option
+                    roomMenu.addMenuItem(0, "Back to Main Menu", roomMenu.hideMenu);
+
+                    // Show the menu
+                    roomMenu.showMenu();
+
+                    if (selectedRoom == null)
+                    {
+                        // User chose to go back
+                        break;
+                    }
+
+                    Console.Clear();
+                    Console.WriteLine($"=== Connecting to Room: {selectedRoom.Id} ===");
+
+                    Console.Write("Enter Password: ");
+                    string? password = Console.ReadLine();
+
+                    try
+                    {
+                        var room = _gameDriver.JoinRoom(selectedRoom.Id, password);
+                        Console.WriteLine("Successfully joined the room!");
+                        Console.WriteLine("Press any key to return to the main menu.");
+                        Console.ReadKey(true);
+                        var roomRunner = new RoomRunner(_gameDriver, room);
+
+                        roomRunner.ShowRoomAsync(cts).Wait();
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Failed to join room: {ex.Message}");
+                        Console.WriteLine("Press any key to try again.");
+                        Console.ReadKey(true);
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to fetch rooms: {ex.Message}");
                     Console.WriteLine("Press any key to return to the main menu.");
                     Console.ReadKey(true);
                     return;
                 }
-
-                ConsoleMenu roomMenu = new ConsoleMenu("==>");
-                roomMenu.Header = "=== Choose a Room ===";
-
-                RoomDTO? selectedRoom = null; // Variable to hold the selected room
-
-                // Populate the menu with available rooms
-                for (int i = 0; i < rooms.Length; i++)
-                {
-                    var room = rooms[i];
-                    roomMenu.addMenuItem(i + 1, $"Room ID: {room.Id}, Owner: {room.Owner}, Players: {room.PlayersCount}/{room.MaxPlayers}", () => { selectedRoom = room; roomMenu.hideMenu(); });
-                }
-
-                // Add a back option
-                roomMenu.addMenuItem(0, "Back to Main Menu", roomMenu.hideMenu);
-
-                // Show the menu
-                roomMenu.showMenu();
-
-                if (selectedRoom == null)
-                {
-                    // User chose to go back
-                    break;
-                }
-
-                Console.Clear();
-                Console.WriteLine($"=== Connecting to Room: {selectedRoom.Id} ===");
-
-                Console.Write("Enter Password: ");
-                string? password = Console.ReadLine();
-
-                try
-                {
-                    var room = _gameDriver.JoinRoom(selectedRoom.Id, password);
-                    Console.WriteLine("Successfully joined the room!");
-                    Console.WriteLine("Press any key to return to the main menu.");
-                    Console.ReadKey(true);
-                    var roomRunner = new RoomRunner(_gameDriver, room);
-
-                    roomRunner.ShowRoomAsync(cts).Wait();
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to join room: {ex.Message}");
-                    Console.WriteLine("Press any key to try again.");
-                    Console.ReadKey(true);
-                }
-
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to fetch rooms: {ex.Message}");
-                Console.WriteLine("Press any key to return to the main menu.");
-                Console.ReadKey(true);
-                return;
             }
         }
     }

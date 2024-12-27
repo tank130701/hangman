@@ -15,15 +15,16 @@ public class RoomRunner
     }
     public async Task ShowRoomAsync(CancellationTokenSource cts)
     {
-
+        var playerUsername = _gameDriver.GetCurrentPlayerUsername();
         Console.Clear();
         Console.WriteLine($"=== Room: {_room.Id} ===");
         Console.WriteLine($"Owner: {_room.Owner}");
+        Console.WriteLine($"Your username: {playerUsername}");
         Console.WriteLine("Players:");
 
         try
         {
-            while (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _gameDriver.GetCurrentPlayerUsername())
+            while (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == playerUsername || !cts.Token.IsCancellationRequested)
             {
                 // Проверяем, был ли отменен токен
                 cts.Token.ThrowIfCancellationRequested();
@@ -35,15 +36,16 @@ public class RoomRunner
                 Console.Clear();
                 Console.WriteLine($"=== Room: {_room.Id} ===");
                 Console.WriteLine($"Owner: {_room.Owner}");
+                Console.WriteLine($"Your username: {playerUsername}");
                 Console.WriteLine("Players:");
 
-                var players = _room.Players;
+                var players = _room.Players.OrderBy(player => player.Username).ToList();
                 foreach (var player in players)
                 {
                     Console.WriteLine($"- {player.Username}");
                 }
 
-                if (_room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                if (_room.Owner == playerUsername)
                 {
                     Console.WriteLine("[S] Start Game");
                     Console.WriteLine("[D] Delete Room");
@@ -55,9 +57,10 @@ public class RoomRunner
                     Console.WriteLine("[R] Reconnect to game");
                 }
 
-                if (_room.Owner != _gameDriver.GetCurrentPlayerUsername() && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
+                if (_room.Owner != playerUsername && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
                 {
                     Console.WriteLine("Waiting for the game to start...");
+                    Console.WriteLine("[Q] Quit to Main Menu");
                     try
                     {
                         await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password);
@@ -70,7 +73,7 @@ public class RoomRunner
                     }
                 }
 
-                Console.WriteLine("Waiting for the game to start... Press [Q] to leave.");
+                Console.WriteLine("Waiting for the game to start...");
 
                 // Обработка ввода пользователя
                 if (Console.KeyAvailable)
@@ -85,13 +88,13 @@ public class RoomRunner
                         return; // Выходим из метода
                     }
 
-                    if (key == ConsoleKey.S && _room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                    if (key == ConsoleKey.S && _room.Owner == playerUsername)
                     {
                         StartGame(cts, _room.Id, _room.Password, _room.Category);
                         return;
                     }
 
-                    if (key == ConsoleKey.D && _room.Owner == _gameDriver.GetCurrentPlayerUsername())
+                    if (key == ConsoleKey.D && _room.Owner == playerUsername)
                     {
                         DeleteRoom(_room.Id);
                         return;
@@ -99,7 +102,7 @@ public class RoomRunner
                 }
 
                 // Пауза перед повторным запросом состояния комнаты
-                await Task.Delay(1000);
+                await Task.Delay(500);
             }
 
             // Если игра началась, переходим к её процессу

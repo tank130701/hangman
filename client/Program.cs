@@ -25,8 +25,8 @@ namespace client
 
             Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
-           
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
+     
             // tcpClient.Connect();
             var gameService = new GameDriver(tcpClient, username);
             var gameUi = new GameUI(gameService);
@@ -41,7 +41,7 @@ namespace client
                 Environment.NewLine + "                    |___/                      ";
 
             Console.Clear();
-            
+
             // Создаем основное меню
             ConsoleMenu mainMenu = new ConsoleMenu("==>");
             mainMenu.Header = headerText;

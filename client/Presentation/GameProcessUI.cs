@@ -172,6 +172,6 @@ public class GameProcessUI
             }
         }
 
-        Console.WriteLine("Polling stopped. Returning to the main menu...");
+        // Console.WriteLine("Polling stopped. Returning to the rooms menu...");
     }
 }

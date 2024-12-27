@@ -9,48 +9,78 @@ using NLog;
 
 namespace client.Infrastructure
 {
-    /// <summary>
-    /// Класс для работы с TCP-сервером, включая отправку и получение сообщений с префиксом длины и Protobuf.
-    /// </summary>
     public class TcpClientHandler : IDisposable
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private TcpClient _client;
-        private NetworkStream _stream;
         private readonly string _address;
-        private readonly int _port;
+        private readonly int _gamePort;
 
-        /// <summary>
-        /// Создает экземпляр TCP-клиента для подключения к серверу.
-        /// </summary>
-        /// <param name="address">IP-адрес сервера.</param>
-        /// <param name="port">Порт сервера.</param>
-        public TcpClientHandler(string address, int port)
+        private TcpClient _gameClient;
+        private NetworkStream _gameStream;
+
+        public TcpClientHandler(string address, int gamePort)
         {
             _address = address;
-            _port = port;
-            Connect(); // Инициализация соединения при создании
+            _gamePort = gamePort;
+            Connect();
         }
 
-        /// <summary>
-        /// Устанавливает соединение с сервером.
-        /// </summary>
         public void Connect()
         {
             try
             {
-                // Закрываем старое соединение, если оно существует
-                CloseConnection();
-
-                // Создаем новое подключение
-                _client = new TcpClient(_address, _port);
-                _stream = _client.GetStream();
-                Logger.Info($"Connected to server at {_address}:{_port}");
+                // Подключение к игровому серверу
+                _gameClient = new TcpClient(_address, _gamePort);
+                _gameStream = _gameClient.GetStream();
+                Logger.Info($"Connected to game server at {_address}:{_gamePort}");
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to connect to the server");
-                throw new Exception("Failed to connect to the server", ex);
+                throw;
+            }
+        }
+
+        private void Reconnect()
+        {
+            try
+            {
+                // Закрываем старое соединение, если оно существует
+                if (_gameClient != null)
+                {
+                    _gameClient.Close();
+                    _gameClient.Dispose();
+                    _gameClient = null;
+                }
+
+                // Создаём новый TcpClient
+                _gameClient = new TcpClient();
+
+                Console.WriteLine("Attempting to reconnect...");
+
+                // Выполняем подключение
+                _gameClient.Connect(_address, _gamePort);
+
+                // Проверяем состояние подключения
+                if (!_gameClient.Connected)
+                {
+                    throw new Exception("Failed to establish a connection with the server.");
+                }
+
+                // Обновляем поток
+                _gameStream = _gameClient.GetStream();
+
+                Console.WriteLine("Reconnected successfully!");
+            }
+            catch (SocketException ex)
+            {
+                Console.WriteLine($"SocketException during reconnect: {ex.Message}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to reconnect: {ex.Message}");
+                throw;
             }
         }
 
@@ -83,34 +113,56 @@ namespace client.Infrastructure
         /// </summary>
         public void SendMessage(string command, string payload)
         {
-            try
+            // const int maxRetries = 3; // Максимальное количество попыток
+            // int attempt = 0;
+
+            // while (attempt < maxRetries)
             {
-                var clientMessage = new ClientMessage
+                // try
                 {
-                    Command = command,
-                    Payload = ByteString.CopyFromUtf8(payload)
-                };
+                    if (_gameClient == null || !_gameClient.Connected)
+                    {
+                        // Logger.Warn("Client is not connected.");
+                        // return default;;
+                        Reconnect();
+                    }
+                    var clientMessage = new ClientMessage
+                    {
+                        Command = command,
+                        Payload = ByteString.CopyFromUtf8(payload)
+                    };
 
-                // Подготовка данных
-                byte[] data = clientMessage.ToByteArray();
-                byte[] header = BitConverter.GetBytes(data.Length);
+                    // Подготовка данных
+                    byte[] data = clientMessage.ToByteArray();
+                    byte[] header = BitConverter.GetBytes(data.Length);
 
-                // Приведение к big-endian, если необходимо
-                if (BitConverter.IsLittleEndian)
-                    Array.Reverse(header);
+                    // Приведение к big-endian, если необходимо
+                    if (BitConverter.IsLittleEndian)
+                        Array.Reverse(header);
 
-                // Отправка данных
-                _stream.Write(header, 0, header.Length);
-                _stream.Write(data, 0, data.Length);
+                    // Отправка данных
+                    _gameStream.Write(header, 0, header.Length);
+                    _gameStream.Write(data, 0, data.Length);
 
-                Logger.Info($"Sent command: {command}, Payload: {payload}");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Error sending message: {command}");
-                throw;
+                    Logger.Info($"Sent command: {command}, Payload: {payload}");
+                    return; // Успешная отправка, выходим из метода
+                }
+                // catch (Exception ex)
+                // {
+                //     attempt++;
+                //     Logger.Error(ex, $"Error sending message: {command}. Attempt {attempt} of {maxRetries}");
+
+                //     if (attempt >= maxRetries)
+                //     {
+                //         throw; // Если достигнуто максимальное количество попыток, пробрасываем исключение
+                //     }
+
+                //     // Можно добавить небольшую задержку перед следующей попыткой
+                //     System.Threading.Thread.Sleep(100); // Задержка в 100 миллисекунд
+                // }
             }
         }
+
 
         /// <summary>
         /// Получает сообщение от сервера и десериализует его.
@@ -119,29 +171,51 @@ namespace client.Infrastructure
         {
             try
             {
-                // Читаем заголовок (длина сообщения)
+                if (_gameClient == null || !_gameClient.Connected)
+                {
+                    // Logger.Warn("Client is not connected.");
+                    // return default;;
+                    Reconnect();
+                }
+
+                _gameStream.ReadTimeout = 500; // Установите таймаут в миллисекундах
+
                 byte[] header = new byte[4];
-                _stream.Read(header, 0, header.Length);
+                int bytesRead = _gameStream.Read(header, 0, header.Length);
+
+                if (bytesRead == 0)
+                {
+                    Logger.Warn("No bytes read from stream.");
+                    return default;
+                }
 
                 if (BitConverter.IsLittleEndian)
                     Array.Reverse(header);
 
                 int messageLength = BitConverter.ToInt32(header, 0);
-
-                // Читаем тело сообщения
                 byte[] body = new byte[messageLength];
                 int totalBytesRead = 0;
+
                 while (totalBytesRead < messageLength)
                 {
-                    totalBytesRead += _stream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    int chunkSize = _gameStream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    if (chunkSize == 0)
+                    {
+                        Logger.Warn("No more bytes to read from stream.");
+                        return default;
+                    }
+                    totalBytesRead += chunkSize;
                 }
 
-                // Парсинг сообщения
                 var parser = new MessageParser<T>(() => new T());
                 T message = parser.ParseFrom(body);
-
                 Logger.Info($"Received message: {message}");
                 return message;
+            }
+            catch (IOException ex) when (ex.InnerException is SocketException)
+            {
+                Logger.Warn("Read operation timed out or connection closed.");
+                return default;
             }
             catch (Exception ex)
             {
@@ -225,31 +299,25 @@ namespace client.Infrastructure
                 throw;
             }
         }
-        /// <summary>
-        /// Закрывает текущее соединение.
-        /// </summary>
-        private void CloseConnection()
-        {
-            try
-            {
-                _stream?.Close();
-                _client?.Close();
-                Logger.Info("Connection closed.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Error closing connection");
-            }
-        }
-
 
         /// <summary>
         /// Реализация IDisposable для автоматического освобождения ресурсов.
         /// </summary>
         public void Dispose()
         {
-            CloseConnection();
+            try
+            {
+                _gameStream?.Close();
+                _gameClient?.Close();
+
+                Logger.Info("Connections closed.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error disposing TcpClientHandler");
+            }
         }
+
         /// <summary>
         /// Возвращает поток NetworkStream для прямого чтения/записи.
         /// </summary>
@@ -263,7 +331,7 @@ namespace client.Infrastructure
                 // }
 
                 Logger.Info("Returning active NetworkStream.");
-                return _stream;
+                return _gameStream;
             }
             catch (Exception ex)
             {
