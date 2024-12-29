@@ -56,7 +56,8 @@ type GetRoomStateRequest struct {
 	Password string `json:"password"`
 }
 type GetRoomStateResponse struct {
-	State string `json:"state"`
+	State   string      `json:"state"`
+	Players []PlayerDTO `json:"players"`
 }
 
 type LeaveRoomRequest struct {

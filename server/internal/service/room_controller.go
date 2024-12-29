@@ -241,7 +241,7 @@ func (rc *RoomController) MakeGuess(clientKey domain.ClientKey, roomID string, l
 	return rc.gameService.MakeGuess(room, player, letter)
 }
 
-func (rc *RoomController) GetRoomState(roomID, password string) (*string, error) {
+func (rc *RoomController) GetRoomState(roomID, password string) (*domain.Room, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
 		return nil, err
@@ -251,8 +251,7 @@ func (rc *RoomController) GetRoomState(roomID, password string) (*string, error)
 		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
 	}
 
-	roomState := string(room.RoomState)
-	return &roomState, nil
+	return room, nil
 }
 
 func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameState, error) {

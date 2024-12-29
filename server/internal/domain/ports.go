@@ -18,7 +18,7 @@ type IRoomController interface {
 	JoinRoom(ctx context.Context, username, roomID, password string) (*Room, error)
 	StartGame(clientKey ClientKey, roomID string) error
 	MakeGuess(clientKey ClientKey, roomID string, letter rune) (bool, string, error)
-	GetRoomState(roomID, password string) (*string, error)
+	GetRoomState(roomID, password string) (*Room, error)
 	DeleteRoom(clientKey ClientKey, roomID string) error
 	LeaveRoom(clientKey ClientKey, roomID string) error
 	HandleOwnerChange(room *Room) error

@@ -229,14 +229,16 @@ func (h *Handler) handleGetRoomStateRequest(ctx context.Context, message []byte)
 	}
 
 	// Получаем состояние комнаты через контроллер
-	roomState, err := h.RoomController.GetRoomState(req.RoomID, req.Password)
+	room, err := h.RoomController.GetRoomState(req.RoomID, req.Password)
 	if err != nil {
 		return nil, errs.NewError(tcp_server.StatusInternalServerError, err.Error())
 	}
-
+	roomState := string(room.RoomState)
 	// Формируем ответ DTO
+	players := ConvertPlayersToSlice(room.Players)
 	response := GetRoomStateResponse{
-		State: *roomState,
+		Players: players,
+		State:   roomState,
 	}
 
 	// Сериализуем ответ в JSON
