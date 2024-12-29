@@ -12,6 +12,7 @@ namespace client.Domain.Interfaces
         DeleteRoomResponse DeleteRoom(string roomId, string password);
         GuessLetterResponse SendGuess(string roomId, string password, char letter);
         RoomGameStateResponse GetGameState(string roomId);
+        GetRoomStateResponse GetRoomState(string roomId, string password);
         GetAllRoomsResponse GetAllRooms();
         GetLeaderBoardResponse GetLeaderBoard();
         Stream GetRoomStream();

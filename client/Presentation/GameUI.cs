@@ -205,7 +205,7 @@ public class GameUI
                         Console.ReadKey(true);
                         var roomRunner = new RoomRunner(_gameDriver, room);
 
-                        roomRunner.ShowRoomAsync(cts).Wait();
+                        roomRunner.ShowRoom(cts);
                         break;
                     }
                     catch (Exception ex)

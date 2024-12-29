@@ -13,68 +13,76 @@ public class RoomRunner
         _gameDriver = gameDriver;
         _gameUi = new GameProcessUI(gameDriver);
     }
-    public async Task ShowRoomAsync(CancellationTokenSource cts)
+    private void RenderRoomState(string playerUsername)
     {
-        var playerUsername = _gameDriver.GetCurrentPlayerUsername();
+        var roomState = _gameDriver.GetRoomState(_room.Id, _room.Password);
+        // Отображаем текущее состояние комнаты
         Console.Clear();
         Console.WriteLine($"=== Room: {_room.Id} ===");
         Console.WriteLine($"Owner: {_room.Owner}");
         Console.WriteLine($"Your username: {playerUsername}");
         Console.WriteLine("Players:");
 
+        // Извлекаем имена пользователей из Players
+
+        var players = roomState.Players;
+        var playerNames = players
+        .Select(player => player.Username) // Извлекаем имена пользователей
+        .OrderBy(name => name) // Сортируем имена
+        .ToList(); // Преобразуем в список
+                   // Выводим имена пользователей
+        foreach (var playerName in playerNames)
+        {
+            Console.WriteLine($"- {playerName}");
+        }
+
+        if (_room.Owner == playerUsername)
+        {
+            Console.WriteLine("[S] Start Game");
+            Console.WriteLine("[D] Delete Room");
+            Console.WriteLine("[Q] Quit to Main Menu");
+        }
+
+        if (_room.RoomState == "InProgress")
+        {
+            Console.WriteLine("[R] Reconnect to game");
+        }
+
+        if (_room.Owner != playerUsername && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
+        {
+            Console.WriteLine("Waiting for the game to start...");
+            Console.WriteLine("[Q] Quit to Main Menu");
+
+        }
+
+        Console.WriteLine("Waiting for the game to start...");
+    }
+    public void ShowRoom(CancellationTokenSource cts)
+    {
+        var playerUsername = _gameDriver.GetCurrentPlayerUsername();
         try
         {
             while (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == playerUsername || !cts.Token.IsCancellationRequested)
             {
-                // Проверяем, был ли отменен токен
-                cts.Token.ThrowIfCancellationRequested();
-
-                // Запрашиваем актуальное состояние комнаты через JoinRoom
-                _room = _gameDriver.JoinRoom(_room.Id, _room.Password);
-
-                // Отображаем текущее состояние комнаты
-                Console.Clear();
-                Console.WriteLine($"=== Room: {_room.Id} ===");
-                Console.WriteLine($"Owner: {_room.Owner}");
-                Console.WriteLine($"Your username: {playerUsername}");
-                Console.WriteLine("Players:");
-
-                var players = _room.Players.OrderBy(player => player.Username).ToList();
-                foreach (var player in players)
+                RenderRoomState(playerUsername);
+                if (_room.Owner != playerUsername)
                 {
-                    Console.WriteLine($"- {player.Username}");
-                }
-
-                if (_room.Owner == playerUsername)
-                {
-                    Console.WriteLine("[S] Start Game");
-                    Console.WriteLine("[D] Delete Room");
-                    Console.WriteLine("[Q] Quit to Main Menu");
-                }
-
-                if (_room.RoomState == "InProgress")
-                {
-                    Console.WriteLine("[R] Reconnect to game");
-                }
-
-                if (_room.Owner != playerUsername && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
-                {
-                    Console.WriteLine("Waiting for the game to start...");
-                    Console.WriteLine("[Q] Quit to Main Menu");
-                    try
+                    while (!cts.Token.IsCancellationRequested)
                     {
-                        await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                        Console.WriteLine("Waiting canceled");
-                        return;
+                        // Проверяем, был ли отменен токен
+                        cts.Token.ThrowIfCancellationRequested();
+                        try
+                        {
+                            Task.Run(async () => { await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password); });
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
+                            Console.WriteLine("Waiting canceled");
+                            return;
+                        }
                     }
                 }
-
-                Console.WriteLine("Waiting for the game to start...");
-
                 // Обработка ввода пользователя
                 if (Console.KeyAvailable)
                 {
@@ -102,7 +110,7 @@ public class RoomRunner
                 }
 
                 // Пауза перед повторным запросом состояния комнаты
-                await Task.Delay(500);
+                Thread.Sleep(1000);
             }
 
             // Если игра началась, переходим к её процессу
@@ -133,7 +141,7 @@ public class RoomRunner
             _gameUi.PlayGame(roomId, category, password);
             var room = _gameDriver.JoinRoom(roomId, password);
             var roomRunner = new RoomRunner(_gameDriver, room);
-            roomRunner.ShowRoomAsync(cts).Wait();
+            roomRunner.ShowRoom(cts);
         }
         catch (Exception ex)
         {

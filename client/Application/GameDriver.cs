@@ -108,6 +108,17 @@ namespace client.Application
             return SendMessage<RoomGameStateResponse>("GET_GAME_STATE", request);
         }
 
+         public GetRoomStateResponse GetRoomState(string roomId, string password)
+        {
+            var request = new GetRoomStateRequest
+            {
+                RoomID = roomId,
+                Password = password,
+            };
+
+            return SendMessage<GetRoomStateResponse>("GET_ROOM_STATE", request);
+        }
+
         public GetAllRoomsResponse GetAllRooms()
         {
             return SendMessage<GetAllRoomsResponse>("GET_ALL_ROOMS", null);
@@ -117,13 +128,13 @@ namespace client.Application
         {
             return SendMessage<GetLeaderBoardResponse>("GET_LEADERBOARD", null);
         }
+
         /// <summary>
         /// Обрабатывает событие "GameStarted" из ServerResponse.
         /// </summary>
         /// <param name="serverResponse">Ответ сервера в формате protobuf.</param>
         /// <returns>Объект GameStartedEvent.</returns>
         /// 
-
         public async Task<ServerResponse> TryToGetServerEventAsync(CancellationToken cancellationToken)
         {
             while (true)

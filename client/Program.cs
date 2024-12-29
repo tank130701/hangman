@@ -2,20 +2,29 @@
 using client.Infrastructure;
 using client.Menu;
 using client.Presentation;
+using NLog;
 using System.Diagnostics;
 
 namespace client
 {
+
     class Program
     {
         // Создание окна для логов
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
         static void Main(string[] args)
         {
+      
+            // Настройка NLog
+            LogManager.LoadConfiguration("nlog.config");
+            // Пример логирования
+            logger.Info("Log console started.");
+
             Console.Clear();
             // Создаем экземпляр класса InputHandler
             InputHandler inputHandler = new InputHandler();
 
-            // // Получаем имя пользователя и адрес сервера
+            // Получаем имя пользователя и адрес сервера
             string username = inputHandler.GetValidatedUsername();
             // string serverAddress = inputHandler.GetValidatedServerAddress();
 
@@ -26,7 +35,7 @@ namespace client
             Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
             var tcpClient = new TcpClientHandler(serverAddress, serverPort);
-     
+
             // tcpClient.Connect();
             var gameService = new GameDriver(tcpClient, username);
             var gameUi = new GameUI(gameService);
@@ -56,6 +65,7 @@ namespace client
 
             // Отображаем меню
             mainMenu.showMenu();
+
         }
 
         // Функция выхода
