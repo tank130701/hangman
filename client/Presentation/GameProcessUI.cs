@@ -105,6 +105,10 @@ public class GameProcessUI
 
                     var guessResponse = _gameDriver.SendGuess(roomId, password, input[0]);
                     Console.WriteLine(guessResponse.Feedback);
+                    if (guessResponse.GameOver == true){
+                        Console.ReadKey(true);
+                    }
+                    Thread.Sleep(500);
                 }
                 else
                 {
@@ -118,7 +122,6 @@ public class GameProcessUI
                 break;
             }
         }
-
         Console.WriteLine("Press any key to return to the main menu.");
         Console.ReadKey(true);
     }

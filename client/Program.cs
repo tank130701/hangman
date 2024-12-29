@@ -16,7 +16,7 @@ namespace client
         {
       
             // Настройка NLog
-            LogManager.LoadConfiguration("nlog.config");
+            LogManager.LoadConfiguration("NLog.config");
             // Пример логирования
             logger.Info("Log console started.");
 

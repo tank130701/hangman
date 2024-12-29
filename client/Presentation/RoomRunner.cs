@@ -67,21 +67,24 @@ public class RoomRunner
                 RenderRoomState(playerUsername);
                 if (_room.Owner != playerUsername)
                 {
-                    while (!cts.Token.IsCancellationRequested)
+                    Task.Run(async () =>
                     {
-                        // Проверяем, был ли отменен токен
-                        cts.Token.ThrowIfCancellationRequested();
-                        try
+                        // while (!cts.Token.IsCancellationRequested)
                         {
-                            Task.Run(async () => { await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password); });
+                            // Проверяем, был ли отменен токен
+                            // cts.Token.ThrowIfCancellationRequested();
+                            try
+                            {
+                                await _gameUi.PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
+                                Console.WriteLine("Waiting canceled");
+                                return;
+                            }
                         }
-                        catch (OperationCanceledException)
-                        {
-                            _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                            Console.WriteLine("Waiting canceled");
-                            return;
-                        }
-                    }
+                    });
                 }
                 // Обработка ввода пользователя
                 if (Console.KeyAvailable)
