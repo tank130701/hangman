@@ -1,0 +1,157 @@
+using System.Text.Json;
+using client.Domain.Events;
+using Tcp;
+namespace client.Infrastructure;
+
+public class MessageController
+{
+    private readonly TcpClientHandler _clientHandler;
+    private const int StatusSuccess = 2000;
+    public MessageController(TcpClientHandler clientHandler)
+    {
+        _clientHandler = clientHandler;
+    }
+    public Stream GetStream()
+    {
+        // Здесь возвращаем существующий NetworkStream,
+        // который был открыт при подключении к комнате.
+        return _clientHandler.GetStream();
+    }
+    /// <summary>
+    /// Отправляет сообщение с командой и возвращает десериализованный ответ.
+    /// </summary>
+    public T SendMessage<T>(string command, object request)
+    {
+        try
+        {
+            // Сериализация запроса в JSON
+            string jsonRequest = _clientHandler.SerializeToJson(request);
+            _clientHandler.SendMessage(command, jsonRequest);
+
+            // Чтение ответа от сервера
+            var response = _clientHandler.ReadMessage<ServerResponse>();
+            if (response.StatusCode != StatusSuccess)
+            {
+                throw new Exception($"Server returned error: {response.Message}");
+            }
+
+            // Десериализация полезной нагрузки
+            return _clientHandler.DeserializePayload<T>(response.Payload);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending request: {ex.Message}");
+            throw;
+        }
+    }
+    public GameEvent? TryToGetServerEvent(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested(); // Проверяем токен отмены
+
+            try
+            {
+                // Читаем сообщение из потока
+                var stream = _clientHandler.GetStream();
+                var serverResponse = _clientHandler.ReadMessageFromStreamWithCancellation(stream, cancellationToken);
+
+                if (serverResponse == null)
+                {
+                    Console.WriteLine("No response received from server.");
+                    continue; // Пропускаем итерацию, если ответ пуст
+                }
+
+                if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
+                {
+                    Console.WriteLine("Received empty payload from server.");
+                    continue; // Пропускаем итерацию, если payload пустой
+                }
+
+                // Обработка типа сообщения
+                switch (serverResponse.Message)
+                {
+                    case "GameStarted":
+                        return _clientHandler.DeserializePayload<GameStartedEvent>(serverResponse.Payload);
+
+                    case "PlayerJoined":
+                        return _clientHandler.DeserializePayload<PlayerJoinedEvent>(serverResponse.Payload);
+
+                    case "PlayerLeft":
+                        return _clientHandler.DeserializePayload<PlayerLeftEvent>(serverResponse.Payload);
+
+                    default:
+                        throw new InvalidOperationException($"Unknown event type: {serverResponse.Message}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Operation was canceled.");
+                throw; // Пробрасываем исключение отмены
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error during server communication: {ex.Message}");
+                // Проверяем, был ли запрошен токен отмены, и пробрасываем исключение отмены
+                throw new OperationCanceledException(cancellationToken);
+                // throw; // Пробрасываем другие исключения
+            }
+        }
+    }
+    /// <summary>
+    /// Обрабатывает событие "GameStarted" из ServerResponse.
+    /// </summary>
+    /// <param name="serverResponse">Ответ сервера в формате protobuf.</param>
+    /// <returns>Объект GameStartedEvent.</returns>
+    public async Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested(); // Проверяем токен отмены
+
+            try
+            {
+                // Читаем сообщение из потока асинхронно
+                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetStream(), cancellationToken);
+
+                if (serverResponse == null)
+                {
+                    Console.WriteLine("No response received from server.");
+                    continue; // Пропускаем итерацию, если ответ пуст
+                }
+
+                if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
+                {
+                    Console.WriteLine("Received empty payload from server.");
+                    continue; // Пропускаем итерацию, если payload пустой
+                }
+
+                // Обработка типа сообщения
+                switch (serverResponse.Message)
+                {
+                    case "GameStarted":
+                        return _clientHandler.DeserializePayload<GameStartedEvent>(serverResponse.Payload);
+
+                    case "PlayerJoined":
+                        return _clientHandler.DeserializePayload<PlayerJoinedEvent>(serverResponse.Payload);
+
+                    case "PlayerLeft":
+                        return _clientHandler.DeserializePayload<PlayerLeftEvent>(serverResponse.Payload);
+
+                    default:
+                        throw new InvalidOperationException($"Unknown event type: {serverResponse.Message}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Operation was canceled.");
+                throw; // Пробрасываем исключение отмены
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error during server communication: {ex.Message}");
+                throw; // Пробрасываем другие исключения
+            }
+        }
+    }
+}
