@@ -1,3 +1,5 @@
+using System.Net.Sockets;
+using client.Domain.Events;
 using Tcp;
 
 namespace client.Domain.Interfaces
@@ -16,6 +18,7 @@ namespace client.Domain.Interfaces
         GetAllRoomsResponse GetAllRooms();
         GetLeaderBoardResponse GetLeaderBoard();
         Stream GetRoomStream();
-        Task<ServerResponse> TryToGetServerEventAsync(CancellationToken cancellationToken);
+        Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken);
+       GameEvent? TryToGetServerEvent(CancellationToken cancellationToken);
     }
 }

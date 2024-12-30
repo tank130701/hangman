@@ -11,5 +11,5 @@ public class StartGameRequest
 public class StartGameResponse
 {
     // [JsonPropertyName("message")]
-    public string Message { get; set; }
+    public required string Message { get; set; }
 }

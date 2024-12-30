@@ -3,10 +3,10 @@ using System.Text.Json.Serialization;
 public class RoomDTO
 {
      [JsonPropertyName("id")]
-    public string Id { get; set; }
+    public required string Id { get; set; }
 
      [JsonPropertyName("owner")]
-    public string Owner { get; set; }
+    public required string Owner { get; set; }
 
      [JsonPropertyName("players_count")]
     public int PlayersCount { get; set; }
@@ -18,10 +18,10 @@ public class RoomDTO
     //public bool IsOpen { get; set; }
 
    [JsonPropertyName("last_activity")]
-    public string LastActivity { get; set; }
+    public required string LastActivity { get; set; }
 }
 public class GetAllRoomsResponse
 {
     [JsonPropertyName("rooms")]
-    public RoomDTO[] Rooms { get; set; }
+    public required RoomDTO[] Rooms { get; set; }
 }

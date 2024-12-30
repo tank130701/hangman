@@ -12,7 +12,7 @@ public class GetGameStateRequest
 public class PlayerGameState
 {
     [JsonPropertyName("word_progress")]
-    public string WordProgress { get; set; } // Текущее состояние слова (с угаданными буквами)
+    public required string WordProgress { get; set; } // Текущее состояние слова (с угаданными буквами)
 
     [JsonPropertyName("attempts_left")]
     public int AttemptsLeft { get; set; } // Остаток попыток
@@ -26,5 +26,5 @@ public class PlayerGameState
 public class RoomGameStateResponse
 {
     [JsonPropertyName("players")]
-    public Dictionary<string, PlayerGameState> Players { get; set; } // Карта состояний игроков
+    public required Dictionary<string, PlayerGameState> Players { get; set; } // Карта состояний игроков
 }

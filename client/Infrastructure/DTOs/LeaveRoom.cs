@@ -3,20 +3,20 @@ using System.Text.Json.Serialization;
 public class LeaveRoomRequest
 {
     [JsonPropertyName("player_username")]
-    public string PlayerUsername { get; set; }
+    public required string PlayerUsername { get; set; }
 
     [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
+    public required string RoomID { get; set; }
 
     [JsonPropertyName("password")]
-    public string Password { get; set; }
+    public required string Password { get; set; }
 }
 
 public class LeaveRoomResponse
 {
     [JsonPropertyName("message")]
-    public string Message { get; set; }
+    public required string Message { get; set; }
 
     [JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
+    public required string RoomID { get; set; }
 }

@@ -3,16 +3,16 @@ using System.Text.Json.Serialization;
 public class GetRoomStateRequest
 {
     [JsonPropertyName("room_id")]
-    public string RoomID { get; set; } // Идентификатор комнаты
+    public required string RoomID { get; set; } // Идентификатор комнаты
 
     [JsonPropertyName("password")]
-    public string Password { get; set; } // Пароль для комнаты
+    public required string Password { get; set; } // Пароль для комнаты
 }
 
 public class PlayerDTO
 {
     [JsonPropertyName("username")]
-    public string Username { get; set; } // Имя пользователя
+    public required string Username { get; set; } // Имя пользователя
 
     [JsonPropertyName("score")]
     public int Score { get; set; } // Очки игрока
@@ -24,9 +24,9 @@ public class PlayerDTO
 public class GetRoomStateResponse
 {
     [JsonPropertyName("state")]
-    public string State { get; set; } // Состояние комнаты (например, "WaitingForPlayers")
+    public required string State { get; set; } // Состояние комнаты (например, "WaitingForPlayers")
 
     [JsonPropertyName("players")]
-    public List<PlayerDTO> Players { get; set; } // Список игроков
+    public required List<PlayerDTO> Players { get; set; } // Список игроков
 }
 

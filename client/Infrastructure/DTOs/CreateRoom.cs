@@ -16,8 +16,8 @@ public class CreateRoomRequest
 public class CreateRoomResponse
 {
      //[JsonPropertyName("message")]
-    public string Message { get; set; }
+    public required string Message { get; set; }
 
      //[JsonPropertyName("room_id")]
-    public string RoomID { get; set; }
+    public required string RoomID { get; set; }
 }

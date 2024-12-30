@@ -14,7 +14,7 @@ namespace client
         private static readonly Logger logger = LogManager.GetCurrentClassLogger();
         static void Main(string[] args)
         {
-      
+
             // Настройка NLog
             LogManager.LoadConfiguration("NLog.config");
             // Пример логирования
@@ -31,13 +31,36 @@ namespace client
             // string username = "test";
             string serverAddress = "127.0.0.1";
 
-
-            Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
+            // Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
-            var tcpClient = new TcpClientHandler(serverAddress, serverPort);
+            TcpClientHandler? tcpClient = null;
+
+            while (tcpClient == null)
+            {
+                try
+                {
+                    Console.WriteLine($"Attempting to connect to server at {serverAddress}:{serverPort}...");
+                    tcpClient = new TcpClientHandler(serverAddress, serverPort);
+                    Console.WriteLine("Connected to the server successfully!");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to connect to the server: {ex.Message}");
+
+                    Console.WriteLine("Would you like to try again? (Y/N)");
+                    var key = Console.ReadKey(intercept: true).Key;
+
+                    if (key == ConsoleKey.N)
+                    {
+                        Console.WriteLine("\nExiting the application.");
+                        Environment.Exit(0);
+                    }
+                }
+            }
 
             // tcpClient.Connect();
-            var gameService = new GameDriver(tcpClient, username);
+            var messageController = new MessageController(tcpClient);
+            var gameService = new GameDriver(username, messageController);
             var gameUi = new GameUI(gameService);
 
             string headerText = "  _   _                                         " +

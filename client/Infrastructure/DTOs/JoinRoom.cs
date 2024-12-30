@@ -16,13 +16,13 @@ public class JoinRoomRequest
 public class JoinRoomResponse
 {
     [JsonPropertyName("id")]
-    public string Id { get; set; }
+    public required string Id { get; set; }
 
     [JsonPropertyName("owner")]
-    public string Owner { get; set; }
+    public required string Owner { get; set; }
 
     [JsonPropertyName("players")]
-    public PlayerScoreDTO[] Players { get; set; }
+    public required PlayerScoreDTO[] Players { get; set; }
 
     [JsonPropertyName("last_activity")]
     public DateTime LastActivity { get; set; }
@@ -31,14 +31,14 @@ public class JoinRoomResponse
     public int MaxPlayers { get; set; }
 
     [JsonPropertyName("password")]
-    public string Password { get; set; }
+    public required string Password { get; set; }
 
     [JsonPropertyName("category")]
-    public string Category { get; set; }
+    public required string Category { get; set; }
 
     [JsonPropertyName("difficulty")]
-    public string Difficulty { get; set; }
+    public required string Difficulty { get; set; }
 
     [JsonPropertyName("state")]
-    public string RoomState { get; set; }
+    public required string RoomState { get; set; }
 }

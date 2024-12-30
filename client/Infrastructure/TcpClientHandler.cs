@@ -15,8 +15,8 @@ namespace client.Infrastructure
         private readonly string _address;
         private readonly int _gamePort;
 
-        private TcpClient _gameClient;
-        private NetworkStream _gameStream;
+        private TcpClient? _gameClient;
+        private NetworkStream? _gameStream;
 
         public TcpClientHandler(string address, int gamePort)
         {
@@ -88,11 +88,11 @@ namespace client.Infrastructure
         /// <summary>
         /// Сериализует объект в JSON-строку.
         /// </summary>
-        private static string SerializeToJson<T>(T obj)
+        public string SerializeToJson<T>(T obj)
         {
             var options = new JsonSerializerOptions
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 WriteIndented = false
             };
             return JsonSerializer.Serialize(obj, options);
@@ -101,11 +101,21 @@ namespace client.Infrastructure
         /// <summary>
         /// Десериализует JSON-строку в объект указанного типа.
         /// </summary>
-        private static T DeserializePayload<T>(ByteString payload)
+        public T DeserializePayload<T>(ByteString payload)
         {
             var jsonString = payload.ToStringUtf8();
             Logger.Debug($"Deserializing payload: {jsonString}");
-            return JsonSerializer.Deserialize<T>(jsonString);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                WriteIndented = false
+            };
+            var result = JsonSerializer.Deserialize<T>(jsonString, options);
+            if (result == null)
+            {
+                throw new InvalidOperationException("Deserialization resulted in a null object.");
+            }
+            return result;
         }
 
         /// <summary>
@@ -141,8 +151,15 @@ namespace client.Infrastructure
                         Array.Reverse(header);
 
                     // Отправка данных
-                    _gameStream.Write(header, 0, header.Length);
-                    _gameStream.Write(data, 0, data.Length);
+                    if (_gameStream != null)
+                    {
+                        _gameStream.Write(header, 0, header.Length);
+                        _gameStream.Write(data, 0, data.Length);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Network stream is not initialized.");
+                    }
 
                     Logger.Info($"Sent command: {command}, Payload: {payload}");
                     return; // Успешная отправка, выходим из метода
@@ -178,6 +195,10 @@ namespace client.Infrastructure
                     Reconnect();
                 }
 
+                if (_gameStream == null)
+                {
+                    throw new InvalidOperationException("Network stream is not initialized.");
+                }
                 _gameStream.ReadTimeout = 500; // Установите таймаут в миллисекундах
 
                 byte[] header = new byte[4];
@@ -186,7 +207,7 @@ namespace client.Infrastructure
                 if (bytesRead == 0)
                 {
                     Logger.Warn("No bytes read from stream.");
-                    return default;
+                    return new T();
                 }
 
                 if (BitConverter.IsLittleEndian)
@@ -202,7 +223,7 @@ namespace client.Infrastructure
                     if (chunkSize == 0)
                     {
                         Logger.Warn("No more bytes to read from stream.");
-                        return default;
+                        return new T();
                     }
                     totalBytesRead += chunkSize;
                 }
@@ -215,12 +236,75 @@ namespace client.Infrastructure
             catch (IOException ex) when (ex.InnerException is SocketException)
             {
                 Logger.Warn("Read operation timed out or connection closed.");
-                return default;
+                return new T();
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Error reading message from server");
                 throw;
+            }
+        }
+
+        public ServerResponse ReadMessageFromStreamWithCancellation(NetworkStream stream, CancellationToken cancellationToken)
+        {
+            // Создаём задачу для чтения в синхронном методе
+            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                var token = linkedCts.Token;
+
+                var readTask = Task.Run(() =>
+                {
+                    // Читаем префикс длины (4 байта)
+                    byte[] header = new byte[4];
+                    int headerRead = stream.Read(header, 0, header.Length);
+                    if (headerRead != header.Length)
+                    {
+                        throw new Exception("Failed to read message length.");
+                    }
+
+                    // Преобразуем заголовок в длину сообщения
+                    if (BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(header);
+                    }
+                    int messageLength = BitConverter.ToInt32(header, 0);
+
+                    // Читаем тело сообщения
+                    byte[] body = new byte[messageLength];
+                    int bytesRead = 0;
+                    while (bytesRead < messageLength)
+                    {
+                        if (token.IsCancellationRequested)
+                        {
+                            throw new OperationCanceledException("Read operation canceled.");
+                        }
+
+                        int chunkRead = stream.Read(body, bytesRead, messageLength - bytesRead);
+                        if (chunkRead == 0)
+                        {
+                            throw new Exception("Stream closed by remote host.");
+                        }
+                        bytesRead += chunkRead;
+                    }
+
+                    // Десериализация
+                    return ServerResponse.Parser.ParseFrom(body);
+                }, token);
+
+                try
+                {
+                    // Ожидаем завершения задачи чтения
+                    return readTask.GetAwaiter().GetResult();
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Operation was canceled, keeping connection alive.");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Error reading message from stream: {ex.Message}", ex);
+                }
             }
         }
 
@@ -329,9 +413,9 @@ namespace client.Infrastructure
                 // {
                 //     throw new InvalidOperationException("No active connection to the server.");
                 // }
-
+                // TODO: Be careful 
                 Logger.Info("Returning active NetworkStream.");
-                return _gameStream;
+                return _gameStream ?? throw new InvalidOperationException("Network stream is not initialized.");
             }
             catch (Exception ex)
             {

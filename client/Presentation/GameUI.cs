@@ -199,6 +199,10 @@ public class GameUI
 
                     try
                     {
+                        if (password == null)
+                        {
+                            throw new ArgumentNullException(nameof(password), "Password cannot be null.");
+                        }
                         var room = _gameDriver.JoinRoom(selectedRoom.Id, password);
                         Console.WriteLine("Successfully joined the room!");
                         Console.WriteLine("Press any key to return to the main menu.");

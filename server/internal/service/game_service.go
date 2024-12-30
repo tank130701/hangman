@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hangman/internal/domain"
 	"hangman/internal/repository"
+	"hangman/internal/transport/tcp"
 )
 
 type GameServiceImpl struct {
@@ -37,7 +38,7 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 	}
 	room.SetState(domain.InProgress)
 	// Уведомляем игроков о начале игры
-	err := room.NotifyPlayers("GameStarted", domain.GameStartedPayload{
+	err := room.NotifyPlayers("GameStarted", tcp.GameStartedEventPayload{
 		Category:   room.Category,
 		Difficulty: room.Difficulty,
 	})

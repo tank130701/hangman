@@ -139,33 +139,36 @@ func (r *Room) GetAllPlayers() []string {
 	return players
 }
 
-type GameStartedPayload struct {
-	Category   string `json:"category"`   // Категория игры
-	Difficulty string `json:"difficulty"` // Сложность игры
-}
-
-func (r *Room) NotifyPlayers(event string, payload GameStartedPayload) error {
+func (r *Room) NotifyPlayers(event string, payload interface{}) error {
 	// Сериализация данных события
 	message, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to serialize event: %w", err)
+		return fmt.Errorf("failed to serialize event payload: %w", err)
 	}
 
-	// Собираем список подключенных клиентов
-	var clients []net.Conn
+	// Получение списка подключенных клиентов
+	clients := r.getConnectedClients()
 
+	if len(clients) == 0 {
+		return fmt.Errorf("no connected clients to notify")
+	}
+
+	// Отправка уведомлений
+	tcp_server.Notify(event, message, clients)
+
+	return nil
+}
+
+// Вспомогательный метод для получения списка подключенных клиентов
+func (r *Room) getConnectedClients() []net.Conn {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	var clients []net.Conn
 	for _, player := range r.Players {
-		if player.IsConnected && player.Username != *r.Owner {
-			if player.Conn != nil {
-				clients = append(clients, *player.Conn)
-			}
+		if player.IsConnected && player.Conn != nil {
+			clients = append(clients, *player.Conn)
 		}
 	}
-
-	// Используем метод Notify для отправки сообщений
-	tcp_server.Notify(event, message, clients)
-	return nil
+	return clients
 }

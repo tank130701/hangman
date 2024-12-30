@@ -86,7 +86,7 @@ public class GameProcessUI
                     hangmanDisplay.DisplayAlphabet();
 
                     Console.Write("Enter a letter to guess: ");
-                    string input = Console.ReadLine()?.Trim().ToLower();
+                    string? input = Console.ReadLine()?.Trim().ToLower();
 
                     if (string.IsNullOrEmpty(input) || input.Length != 1 || !char.IsLetter(input[0]) || !hangmanDisplay.Contains(input[0]))
                     {
@@ -105,7 +105,8 @@ public class GameProcessUI
 
                     var guessResponse = _gameDriver.SendGuess(roomId, password, input[0]);
                     Console.WriteLine(guessResponse.Feedback);
-                    if (guessResponse.GameOver == true){
+                    if (guessResponse.GameOver == true)
+                    {
                         Console.ReadKey(true);
                     }
                     Thread.Sleep(500);
@@ -124,57 +125,5 @@ public class GameProcessUI
         }
         Console.WriteLine("Press any key to return to the main menu.");
         Console.ReadKey(true);
-    }
-
-    public async Task PollGameStateAsync(CancellationToken token, string roomId, string category, string password)
-    {
-        // while (!token.IsCancellationRequested)
-        {
-            // Проверяем, был ли отменен токен
-            // token.ThrowIfCancellationRequested();
-
-            try
-            {
-                // Обрабатываем события от сервера асинхронно
-                var serverResponse = await _gameDriver.TryToGetServerEventAsync(token);
-
-                if (serverResponse == null)
-                {
-                    Console.WriteLine("No meaningful response from the server. Retrying...");
-                    await Task.Delay(100, token); // Пауза перед повторной попыткой с учетом токена
-                    // continue;
-                }
-
-                if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
-                {
-                    Console.WriteLine("Received empty payload. Retrying...");
-                    await Task.Delay(100, token);
-                    // continue;
-                }
-
-                if (serverResponse.Message == "GameStarted")
-                {
-                    var gameStartedEvent = JsonSerializer.Deserialize<GameStartedEvent>(serverResponse.Payload.ToStringUtf8());
-                    Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
-                    PlayGame(roomId, category, password);
-                    // break; // Завершаем цикл после начала игры
-                }
-                else
-                {
-                    Console.WriteLine($"Received unexpected event: {serverResponse.Message}");
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("Polling was canceled.");
-                // break; // Выход из цикла при отмене
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during polling: {ex.Message}");
-            }
-        }
-
-        // Console.WriteLine("Polling stopped. Returning to the rooms menu...");
     }
 }
