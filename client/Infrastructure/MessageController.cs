@@ -53,9 +53,9 @@ public class MessageController
             try
             {
                 // Читаем сообщение из потока
-                var stream = _clientHandler.GetStream();
-                var serverResponse = _clientHandler.ReadMessageFromStreamWithCancellation(stream, cancellationToken);
-
+                // var stream = _clientHandler.GetStream();
+                var serverResponse = _clientHandler.ReadMessage<ServerResponse>();
+                Console.WriteLine(serverResponse.ToString());
                 if (serverResponse == null)
                 {
                     Console.WriteLine("No response received from server.");
@@ -105,7 +105,7 @@ public class MessageController
     /// <returns>Объект GameStartedEvent.</returns>
     public async Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken)
     {
-        while (true)
+        // while (true)
         {
             cancellationToken.ThrowIfCancellationRequested(); // Проверяем токен отмены
 
@@ -117,13 +117,13 @@ public class MessageController
                 if (serverResponse == null)
                 {
                     Console.WriteLine("No response received from server.");
-                    continue; // Пропускаем итерацию, если ответ пуст
+                    // continue; // Пропускаем итерацию, если ответ пуст
                 }
 
                 if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
                 {
                     Console.WriteLine("Received empty payload from server.");
-                    continue; // Пропускаем итерацию, если payload пустой
+                    // continue; // Пропускаем итерацию, если payload пустой
                 }
 
                 // Обработка типа сообщения

@@ -214,7 +214,7 @@ public class GameUI
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Failed to join room: {ex.Message}");
+                        Console.WriteLine($"Failed to join room: (ShowAllRooms) {ex.Message}");
                         Console.WriteLine("Press any key to try again.");
                         Console.ReadKey(true);
                     }

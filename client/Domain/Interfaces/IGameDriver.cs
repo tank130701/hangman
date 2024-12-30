@@ -19,6 +19,6 @@ namespace client.Domain.Interfaces
         GetLeaderBoardResponse GetLeaderBoard();
         Stream GetRoomStream();
         Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken);
-       GameEvent? TryToGetServerEvent(CancellationToken cancellationToken);
+        GameEvent? TryToGetServerEvent(CancellationToken cancellationToken);
     }
 }

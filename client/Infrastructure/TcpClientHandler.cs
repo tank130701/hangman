@@ -199,7 +199,7 @@ namespace client.Infrastructure
                 {
                     throw new InvalidOperationException("Network stream is not initialized.");
                 }
-                _gameStream.ReadTimeout = 500; // Установите таймаут в миллисекундах
+                // _gameStream.ReadTimeout = 3000; // Установите таймаут в миллисекундах
 
                 byte[] header = new byte[4];
                 int bytesRead = _gameStream.Read(header, 0, header.Length);
@@ -244,70 +244,6 @@ namespace client.Infrastructure
                 throw;
             }
         }
-
-        public ServerResponse ReadMessageFromStreamWithCancellation(NetworkStream stream, CancellationToken cancellationToken)
-        {
-            // Создаём задачу для чтения в синхронном методе
-            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-            {
-                var token = linkedCts.Token;
-
-                var readTask = Task.Run(() =>
-                {
-                    // Читаем префикс длины (4 байта)
-                    byte[] header = new byte[4];
-                    int headerRead = stream.Read(header, 0, header.Length);
-                    if (headerRead != header.Length)
-                    {
-                        throw new Exception("Failed to read message length.");
-                    }
-
-                    // Преобразуем заголовок в длину сообщения
-                    if (BitConverter.IsLittleEndian)
-                    {
-                        Array.Reverse(header);
-                    }
-                    int messageLength = BitConverter.ToInt32(header, 0);
-
-                    // Читаем тело сообщения
-                    byte[] body = new byte[messageLength];
-                    int bytesRead = 0;
-                    while (bytesRead < messageLength)
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            throw new OperationCanceledException("Read operation canceled.");
-                        }
-
-                        int chunkRead = stream.Read(body, bytesRead, messageLength - bytesRead);
-                        if (chunkRead == 0)
-                        {
-                            throw new Exception("Stream closed by remote host.");
-                        }
-                        bytesRead += chunkRead;
-                    }
-
-                    // Десериализация
-                    return ServerResponse.Parser.ParseFrom(body);
-                }, token);
-
-                try
-                {
-                    // Ожидаем завершения задачи чтения
-                    return readTask.GetAwaiter().GetResult();
-                }
-                catch (OperationCanceledException)
-                {
-                    Console.WriteLine("Operation was canceled, keeping connection alive.");
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception($"Error reading message from stream: {ex.Message}", ex);
-                }
-            }
-        }
-
         public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream, CancellationToken cancellationToken)
         {
             try
@@ -351,7 +287,8 @@ namespace client.Infrastructure
             }
             catch (Exception ex)
             {
-                throw new Exception($"Error reading message from stream: {ex.Message}", ex);
+                throw new OperationCanceledException($"Read operation canceled. {ex}");
+                // throw new Exception($"Error reading message from stream: {ex.Message}", ex);
             }
         }
 
@@ -409,13 +346,12 @@ namespace client.Infrastructure
         {
             try
             {
-                // if (_stream == null || !_client.Connected)
-                // {
-                //     throw new InvalidOperationException("No active connection to the server.");
-                // }
-                // TODO: Be careful 
+                if (_gameStream == null || _gameClient == null || !_gameClient.Connected)
+                {
+                    throw new InvalidOperationException("No active connection to the server.");
+                }
                 Logger.Info("Returning active NetworkStream.");
-                return _gameStream ?? throw new InvalidOperationException("Network stream is not initialized.");
+                return _gameStream;
             }
             catch (Exception ex)
             {

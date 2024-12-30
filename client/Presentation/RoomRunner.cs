@@ -36,7 +36,7 @@ public class RoomRunner
 
                     if (key == ConsoleKey.S && _room.Owner == playerUsername)
                     {
-                        cts.Cancel();
+                        // cts.Cancel();
                         StartGame(cts, _room.Id, _room.Password, _room.Category);
 
                         return;
@@ -98,13 +98,13 @@ public class RoomRunner
 
         Console.WriteLine("Waiting for the game to start...");
     }
-    private void PollGameStateAsync(CancellationToken token, string roomId, string category, string password)
+    private async void PollGameStateAsync(CancellationTokenSource cts, string roomId, string category, string password)
     {
         try
         {
             // Получаем событие от сервера
-            var serverEvent = _gameDriver.TryToGetServerEvent(token);
-
+            var serverEvent = await _gameDriver.TryToGetServerEventAsync(cts.Token);
+            
             // Обрабатываем событие в зависимости от типа
             switch (serverEvent)
             {
@@ -120,6 +120,7 @@ public class RoomRunner
                     break;
                 case GameStartedEvent gameStartedEvent:
                     Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
+                    cts.Cancel();
                     _gameUi.PlayGame(roomId, category, password);
                     break;
 
@@ -131,7 +132,6 @@ public class RoomRunner
         catch (OperationCanceledException)
         {
             Console.WriteLine("Polling was canceled.");
-            return;
         }
         catch (Exception ex)
         {
@@ -156,7 +156,7 @@ public class RoomRunner
             cts.Token.ThrowIfCancellationRequested();
             try
             {
-                PollGameStateAsync(cts.Token, _room.Id, _room.Category, _room.Password);
+                PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password);
             }
             catch (Exception ex)
             {
@@ -168,7 +168,7 @@ public class RoomRunner
 
         // Если уже в игре 
         // Thread.Sleep(1000);
-        if (_room.Owner != _playerUsername)
+        // if (_room.Owner != _playerUsername)
         {
             try
             {
@@ -229,13 +229,14 @@ public class RoomRunner
             var response = _gameDriver.StartGame(roomId, password);
             Console.WriteLine(response.Message);
             _gameUi.PlayGame(roomId, category, password);
+            // cts = new CancellationTokenSource();
             var room = _gameDriver.JoinRoom(roomId, password);
             var roomRunner = new RoomRunner(_gameDriver, room);
             roomRunner.ShowRoom(cts);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to join room: {ex.Message}");
+            Console.WriteLine($"Failed to join room (private method StartGame): {ex.Message}");
             Console.WriteLine("Press any key to return to the main menu.");
             Console.ReadKey(true);
         }

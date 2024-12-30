@@ -44,7 +44,7 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		} else {
 			fmt.Printf("Player %s: context canceled, kicking from room (logger not found)\n", username)
 		}
-
+		//time.Sleep(3 * time.Second)
 		// Кикаем игрока
 		r.KickPlayer(username)
 	}()
