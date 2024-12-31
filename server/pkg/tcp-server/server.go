@@ -5,11 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hangman/internal/errs"
-	"hangman/pkg/utils"
-	"net"
-
 	"google.golang.org/protobuf/proto"
+	"hangman/internal/errs"
+	"net"
 )
 
 type ILogger interface {
@@ -17,6 +15,7 @@ type ILogger interface {
 	Warning(msg string)
 	Error(msg string)
 	Debug(msg string)
+	Fatal(msg string)
 }
 
 type Server struct {
@@ -180,30 +179,4 @@ func CreateErrorResponse(code int32, msg string) []byte {
 
 	respBytes, _ := proto.Marshal(serverResp)
 	return respBytes
-}
-
-func Notify(event string, payload []byte, clients []net.Conn) {
-	localLogger := utils.NewCustomLogger(utils.LevelDebug)
-	for _, conn := range clients {
-		// Формируем сообщение
-		serverResp := &ServerResponse{
-			StatusCode: 2000,
-			Message:    event,
-			Payload:    payload,
-		}
-
-		// Сериализация ответа
-		respBytes, err := proto.Marshal(serverResp)
-		if err != nil {
-			localLogger.Error(fmt.Sprintf("Failed to serialize notification for %s: %v", conn.RemoteAddr().String(), err))
-			continue
-		}
-
-		// Отправка сообщения
-		if err := writeMessage(conn, respBytes); err != nil {
-			localLogger.Error(fmt.Sprintf("Failed to send notification to %s: %v", conn.RemoteAddr().String(), err))
-			continue
-		}
-		localLogger.Info(fmt.Sprintf("Notify: %s, Payload: %s", serverResp.Message, serverResp.Payload))
-	}
 }

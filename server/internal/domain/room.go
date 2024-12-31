@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	tcp_server "hangman/pkg/tcp-server"
+	"hangman/pkg/utils"
 	"net"
 	"sync"
 	"time"
@@ -19,18 +20,44 @@ const (
 )
 
 type Room struct {
-	ID      string
-	Owner   *string
-	Players map[string]*Player // Используем map для хранения игроков
-	//Connections  map[string]*net.Conn // Используем map для хранения соединений
-	LastActivity time.Time
-	MaxPlayers   int
-	Password     string
-	Category     string
-	Difficulty   string
-	StateManager *GameStateManager
-	RoomState    roomState
-	mu           sync.RWMutex
+	ID                 string
+	Owner              *string
+	Players            map[string]*Player // Используем map для хранения игроков
+	notificationServer *tcp_server.NotificationServer
+	LastActivity       time.Time
+	MaxPlayers         int
+	Password           string
+	Category           string
+	Difficulty         string
+	StateManager       *GameStateManager
+	RoomState          roomState
+	mu                 sync.RWMutex
+}
+
+// Конструктор для Room
+func NewRoom(ctx context.Context, id string, owner *string, maxPlayers int, password, category, difficulty string) *Room {
+	// Извлекаем логгер из контекста
+	logger, ok := ctx.Value("logger").(tcp_server.ILogger)
+	if !ok {
+		logger = utils.NewCustomLogger(utils.LevelInfo)
+	}
+	//TODO: make ctxKeyPackage
+	notificationSrv, ok := ctx.Value("notificationServer").(*tcp_server.NotificationServer)
+	if !ok {
+		logger.Error("Failed to load notification server")
+	}
+	return &Room{
+		ID:                 id,
+		Password:           password,
+		Owner:              owner,
+		Players:            make(map[string]*Player),
+		LastActivity:       time.Now(),
+		MaxPlayers:         maxPlayers,
+		Category:           category,
+		Difficulty:         difficulty,
+		RoomState:          Waiting,
+		notificationServer: notificationSrv,
+	}
 }
 
 func (r *Room) MonitorContext(ctx context.Context, username string) {
@@ -147,28 +174,35 @@ func (r *Room) NotifyPlayers(event string, payload interface{}) error {
 	}
 
 	// Получение списка подключенных клиентов
-	clients := r.getConnectedClients()
+	clients := r.getConnectedClientsIPs()
 
 	if len(clients) == 0 {
 		return fmt.Errorf("no connected clients to notify")
 	}
 
 	// Отправка уведомлений
-	tcp_server.Notify(event, message, clients)
+	r.notificationServer.Notify(event, message, clients)
 
 	return nil
 }
 
 // Вспомогательный метод для получения списка подключенных клиентов
-func (r *Room) getConnectedClients() []net.Conn {
+func (r *Room) getConnectedClientsIPs() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	var clients []net.Conn
+	var clientIPs []string
 	for _, player := range r.Players {
 		if player.IsConnected && player.Conn != nil {
-			clients = append(clients, *player.Conn)
+			remoteAddr := (*player.Conn).RemoteAddr().String()
+			// Извлекаем только IP-адрес из "IP:port"
+			host, _, err := net.SplitHostPort(remoteAddr)
+			if err == nil {
+				clientIPs = append(clientIPs, host)
+			} else {
+				fmt.Printf("failed to parse remote address: %v\n", err)
+			}
 		}
 	}
-	return clients
+	return clientIPs
 }

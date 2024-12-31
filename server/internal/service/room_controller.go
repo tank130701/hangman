@@ -28,19 +28,16 @@ func NewRoomController(
 	}
 }
 
-func (rc *RoomController) CreateRoom(player string, roomID, password, category, difficulty string) (*domain.Room, error) {
-	room := &domain.Room{
-		ID:      roomID,
-		Owner:   &player,
-		Players: make(map[string]*domain.Player),
-		//StateManager: domain.NewGameStateManager(),
-		Password:     password,
-		Category:     category,
-		Difficulty:   difficulty,
-		LastActivity: time.Now(),
-		MaxPlayers:   3,
-		RoomState:    domain.Waiting,
-	}
+func (rc *RoomController) CreateRoom(ctx context.Context, player string, roomID, password, category, difficulty string) (*domain.Room, error) {
+	room := domain.NewRoom(
+		ctx,
+		roomID,
+		&player,
+		3,
+		password,
+		category,
+		difficulty,
+	)
 
 	if err := rc.roomRepo.AddRoom(room); err != nil {
 		return nil, err
@@ -89,7 +86,7 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
-			room.MonitorContext(ctx, username)
+			//room.MonitorContext(ctx, username)
 		}
 
 		return room, nil

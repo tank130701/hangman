@@ -39,7 +39,7 @@ func (h *Handler) handleCreateRoomRequest(ctx context.Context, message []byte) (
 		return nil, errs.NewError(tcp_server.StatusBadRequest, "Invalid CREATE_ROOM payload")
 	}
 
-	room, err := h.RoomController.CreateRoom(req.PlayerUsername, req.RoomID, req.Password, req.Category, req.Difficulty)
+	room, err := h.RoomController.CreateRoom(ctx, req.PlayerUsername, req.RoomID, req.Password, req.Category, req.Difficulty)
 	if err != nil {
 		return nil, errs.NewError(tcp_server.StatusInternalServerError, err.Error())
 	}

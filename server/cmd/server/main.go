@@ -29,17 +29,20 @@ func main() {
 
 	// Запускаем процесс очистки неактивных комнат
 	go func() {
-		timeout := 300 // Таймаут удаления комнат в секундах
+		timeout := 60 // Таймаут удаления комнат в секундах
 		logger.Info(fmt.Sprintf("Room cleanup process started with timeout: %d seconds", timeout))
 		roomController.CleanupRooms(timeout)
 	}()
 
 	// Создаём и запускаем TCP-сервер
 	srv := tcp_server.New(":8001", logger) // Передаем RoomController и Logger
-
 	handler.InitRoutes(srv)
-
 	if err := srv.Start(); err != nil {
 		logger.Fatal(fmt.Sprintf("Failed to start server: %v", err))
+	}
+
+	notificationSrv := tcp_server.NewNotificationServer(":8002", logger)
+	if err := notificationSrv.Start(); err != nil {
+		logger.Fatal(fmt.Sprintf("Failed to start notification server: %v", err))
 	}
 }

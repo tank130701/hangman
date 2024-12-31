@@ -18,6 +18,8 @@ namespace client.Infrastructure
         private TcpClient? _gameClient;
         private NetworkStream? _gameStream;
 
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+
         public TcpClientHandler(string address, int gamePort)
         {
             _address = address;
@@ -186,6 +188,7 @@ namespace client.Infrastructure
         /// </summary>
         public T ReadMessage<T>() where T : IMessage<T>, new()
         {
+            _semaphore.Wait(); // Блокируем доступ к этому коду для других потоков
             try
             {
                 if (_gameClient == null || !_gameClient.Connected)
@@ -243,9 +246,14 @@ namespace client.Infrastructure
                 Logger.Error(ex, "Error reading message from server");
                 throw;
             }
+            finally
+            {
+                _semaphore.Release(); // Освобождаем семафор
+            }
         }
         public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream, CancellationToken cancellationToken)
         {
+            await _semaphore.WaitAsync(cancellationToken); // Ожидаем, пока семафор не будет доступен
             try
             {
                 // Читаем префикс длины (4 байта)
@@ -288,7 +296,10 @@ namespace client.Infrastructure
             catch (Exception ex)
             {
                 throw new OperationCanceledException($"Read operation canceled. {ex}");
-                // throw new Exception($"Error reading message from stream: {ex.Message}", ex);
+            }
+            finally
+            {
+                _semaphore.Release(); // Освобождаем семафор
             }
         }
 
