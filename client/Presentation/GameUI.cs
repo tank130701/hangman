@@ -208,7 +208,6 @@ public class GameUI
                         Console.WriteLine("Press any key to return to the main menu.");
                         Console.ReadKey(true);
                         var roomRunner = new RoomRunner(_gameDriver, room);
-
                         roomRunner.ShowRoom(cts);
                         break;
                     }

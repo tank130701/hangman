@@ -97,12 +97,12 @@ public class RoomRunner
 
         Console.WriteLine("Waiting for the game to start...");
     }
-    private async Task PollGameStateAsync(CancellationTokenSource cts, string roomId, string category, string password)
+    private void PollGameStateAsync(CancellationTokenSource cts, string roomId, string category, string password)
     {
         try
         {
             // Получаем событие от сервера
-            var serverEvent = await _gameDriver.TryToGetServerEventAsync(cts.Token);
+            var serverEvent = _gameDriver.TryToGetServerEvent(cts.Token);
 
             // Обрабатываем событие в зависимости от типа
             switch (serverEvent)
@@ -114,7 +114,7 @@ public class RoomRunner
                     break;
                 case PlayerLeftEvent playerLeftEvent:
                     RenderRoomState(_playerUsername);
-                    Console.WriteLine($"Player joined: {playerLeftEvent.Username}");
+                    Console.WriteLine($"Player left: {playerLeftEvent.Username}");
                     Thread.Sleep(1000); // 1 секунда ожидания
                     break;
                 case GameStartedEvent gameStartedEvent:
@@ -150,13 +150,13 @@ public class RoomRunner
         RenderRoomState(_playerUsername);
         while ((_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _playerUsername) && !cts.Token.IsCancellationRequested)
 
-            if (_room.Owner != _playerUsername)
+            // if (_room.Owner != _playerUsername)
             {
                 // Проверяем, был ли отменен токен
                 cts.Token.ThrowIfCancellationRequested();
                 try
                 {
-                    PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password).Wait();
+                    PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password);
                 }
                 catch (Exception ex)
                 {

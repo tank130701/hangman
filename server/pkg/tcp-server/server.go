@@ -70,13 +70,18 @@ func (s *Server) Start() error {
 
 // handleConnection обрабатывает подключение клиента
 func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		// s.mu.Lock()
+		// s.mu.Unlock()
+		s.logger.Info(fmt.Sprintf("Game client disconnected: %s", conn.RemoteAddr().String()))
+	}()
 	clientAddr := conn.RemoteAddr().String()
 	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
 
 	// Создаём контекст с функцией отмены
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// defer cancel()
 
 	// Пробрасываем соединение, логгер и функцию отмены в контекст
 	ctx = context.WithValue(ctx, "conn", conn)

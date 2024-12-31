@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hangman/internal/events"
 	tcp_server "hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 	"net"
@@ -74,6 +75,7 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		//time.Sleep(3 * time.Second)
 		// Кикаем игрока
 		r.KickPlayer(username)
+		r.NotifyPlayers("PlayerLeft", events.PlayerLeftEventPayload{Username: username})
 	}()
 }
 

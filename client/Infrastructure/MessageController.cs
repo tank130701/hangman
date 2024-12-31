@@ -54,8 +54,8 @@ public class MessageController
             {
                 // Читаем сообщение из потока
                 // var stream = _clientHandler.GetStream();
-                var serverResponse = _clientHandler.ReadMessage<ServerResponse>();
-                Console.WriteLine(serverResponse.ToString());
+                var serverResponse = _clientHandler.ReadNotification<ServerResponse>();
+                // Console.WriteLine(serverResponse.ToString());
                 if (serverResponse == null)
                 {
                     Console.WriteLine("No response received from server.");
@@ -64,7 +64,7 @@ public class MessageController
 
                 if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
                 {
-                    Console.WriteLine("Received empty payload from server.");
+                    // Console.WriteLine("Received empty payload from server.");
                     continue; // Пропускаем итерацию, если payload пустой
                 }
 
@@ -93,8 +93,8 @@ public class MessageController
             {
                 Console.WriteLine($"Unexpected error during server communication: {ex.Message}");
                 // Проверяем, был ли запрошен токен отмены, и пробрасываем исключение отмены
-                throw new OperationCanceledException(cancellationToken);
-                // throw; // Пробрасываем другие исключения
+                // throw new OperationCanceledException(cancellationToken);
+                throw; // Пробрасываем другие исключения
             }
         }
     }
@@ -112,7 +112,7 @@ public class MessageController
             try
             {
                 // Читаем сообщение из потока асинхронно
-                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetStream(), cancellationToken);
+                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetNotificationStream(), cancellationToken);
 
                 if (serverResponse == null)
                 {

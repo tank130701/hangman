@@ -14,16 +14,17 @@ namespace client.Infrastructure
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
         private readonly string _address;
         private readonly int _gamePort;
-
+        private readonly int _notificationPort;
         private TcpClient? _gameClient;
+        private TcpClient? _notificationClient;
         private NetworkStream? _gameStream;
+        private NetworkStream? _notificationStream;
 
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
-
-        public TcpClientHandler(string address, int gamePort)
+        public TcpClientHandler(string address, int gamePort, int notificationPort)
         {
             _address = address;
             _gamePort = gamePort;
+            _notificationPort = notificationPort;
             Connect();
         }
 
@@ -35,6 +36,20 @@ namespace client.Infrastructure
                 _gameClient = new TcpClient(_address, _gamePort);
                 _gameStream = _gameClient.GetStream();
                 Logger.Info($"Connected to game server at {_address}:{_gamePort}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to connect to the server");
+                throw;
+            }
+        }
+        public void ConnectToNotificationServer()
+        {
+            try
+            {
+                _notificationClient = new TcpClient(_address, _notificationPort);
+                _notificationStream = _notificationClient.GetStream();
+                Logger.Info($"Connected to notification server at {_address}:{_notificationPort}");
             }
             catch (Exception ex)
             {
@@ -130,7 +145,7 @@ namespace client.Infrastructure
 
             // while (attempt < maxRetries)
             {
-                // try
+                try
                 {
                     if (_gameClient == null || !_gameClient.Connected)
                     {
@@ -166,19 +181,19 @@ namespace client.Infrastructure
                     Logger.Info($"Sent command: {command}, Payload: {payload}");
                     return; // Успешная отправка, выходим из метода
                 }
-                // catch (Exception ex)
-                // {
-                //     attempt++;
-                //     Logger.Error(ex, $"Error sending message: {command}. Attempt {attempt} of {maxRetries}");
+                catch (Exception ex)
+                {
+                    //     attempt++;
+                    // Logger.Error(ex, $"Error sending message: {command}. Attempt {attempt} of {maxRetries}");
+                    Logger.Error(ex, $"Error sending message: {command}.");
+                    //     if (attempt >= maxRetries)
+                    //     {
+                    throw; // Если достигнуто максимальное количество попыток, пробрасываем исключение
+                           //     }
 
-                //     if (attempt >= maxRetries)
-                //     {
-                //         throw; // Если достигнуто максимальное количество попыток, пробрасываем исключение
-                //     }
-
-                //     // Можно добавить небольшую задержку перед следующей попыткой
-                //     System.Threading.Thread.Sleep(100); // Задержка в 100 миллисекунд
-                // }
+                    //     // Можно добавить небольшую задержку перед следующей попыткой
+                    //     System.Threading.Thread.Sleep(100); // Задержка в 100 миллисекунд
+                }
             }
         }
 
@@ -188,7 +203,6 @@ namespace client.Infrastructure
         /// </summary>
         public T ReadMessage<T>() where T : IMessage<T>, new()
         {
-            _semaphore.Wait(); // Блокируем доступ к этому коду для других потоков
             try
             {
                 if (_gameClient == null || !_gameClient.Connected)
@@ -246,14 +260,73 @@ namespace client.Infrastructure
                 Logger.Error(ex, "Error reading message from server");
                 throw;
             }
-            finally
+        }
+
+        /// <summary>
+        /// Получает сообщение от сервера и десериализует его.
+        /// </summary>
+        public T ReadNotification<T>() where T : IMessage<T>, new()
+        {
+            try
             {
-                _semaphore.Release(); // Освобождаем семафор
+                if (_notificationClient == null || !_notificationClient.Connected)
+                {
+                    // Logger.Warn("Client is not connected.");
+                    // return default;;
+                    Reconnect();
+                }
+
+                if (_notificationStream == null)
+                {
+                    throw new InvalidOperationException("Network stream is not initialized.");
+                }
+                // _gameStream.ReadTimeout = 3000; // Установите таймаут в миллисекундах
+
+                byte[] header = new byte[4];
+                int bytesRead = _notificationStream.Read(header, 0, header.Length);
+
+                if (bytesRead == 0)
+                {
+                    Logger.Warn("No bytes read from stream.");
+                    return new T();
+                }
+
+                if (BitConverter.IsLittleEndian)
+                    Array.Reverse(header);
+
+                int messageLength = BitConverter.ToInt32(header, 0);
+                byte[] body = new byte[messageLength];
+                int totalBytesRead = 0;
+
+                while (totalBytesRead < messageLength)
+                {
+                    int chunkSize = _notificationStream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    if (chunkSize == 0)
+                    {
+                        Logger.Warn("No more bytes to read from stream.");
+                        return new T();
+                    }
+                    totalBytesRead += chunkSize;
+                }
+
+                var parser = new MessageParser<T>(() => new T());
+                T message = parser.ParseFrom(body);
+                Logger.Info($"Received message: {message}");
+                return message;
+            }
+            catch (IOException ex) when (ex.InnerException is SocketException)
+            {
+                Logger.Warn("Read operation timed out or connection closed.");
+                return new T();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error reading message from server");
+                throw;
             }
         }
         public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream, CancellationToken cancellationToken)
         {
-            await _semaphore.WaitAsync(cancellationToken); // Ожидаем, пока семафор не будет доступен
             try
             {
                 // Читаем префикс длины (4 байта)
@@ -296,10 +369,6 @@ namespace client.Infrastructure
             catch (Exception ex)
             {
                 throw new OperationCanceledException($"Read operation canceled. {ex}");
-            }
-            finally
-            {
-                _semaphore.Release(); // Освобождаем семафор
             }
         }
 
@@ -363,6 +432,23 @@ namespace client.Infrastructure
                 }
                 Logger.Info("Returning active NetworkStream.");
                 return _gameStream;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error returning NetworkStream.");
+                throw;
+            }
+        }
+        public NetworkStream GetNotificationStream()
+        {
+            try
+            {
+                if (_notificationStream == null || _notificationClient == null || !_notificationClient.Connected)
+                {
+                    throw new InvalidOperationException("No active connection to the server.");
+                }
+                Logger.Info("Returning active NetworkStream.");
+                return _notificationStream;
             }
             catch (Exception ex)
             {

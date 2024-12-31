@@ -5,6 +5,7 @@ import (
 	"errors"
 	"hangman/internal/domain"
 	"hangman/internal/errs"
+	"hangman/internal/events"
 	tcp "hangman/pkg/tcp-server"
 	"net"
 	"time"
@@ -38,7 +39,6 @@ func (rc *RoomController) CreateRoom(ctx context.Context, player string, roomID,
 		category,
 		difficulty,
 	)
-
 	if err := rc.roomRepo.AddRoom(room); err != nil {
 		return nil, err
 	}
@@ -86,9 +86,9 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
-			//room.MonitorContext(ctx, username)
+			room.MonitorContext(ctx, username)
 		}
-
+		room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: player.Username})
 		return room, nil
 
 	case domain.InProgress:
@@ -108,7 +108,7 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 		if err != nil {
 			return nil, err
 		}
-
+		room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: username})
 		return room, nil
 	}
 

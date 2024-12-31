@@ -33,6 +33,7 @@ namespace client
 
             // Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
+            const int notificationPort = 8002; // Порт для уведомлений
             TcpClientHandler? tcpClient = null;
 
             while (tcpClient == null)
@@ -40,7 +41,7 @@ namespace client
                 try
                 {
                     Console.WriteLine($"Attempting to connect to server at {serverAddress}:{serverPort}...");
-                    tcpClient = new TcpClientHandler(serverAddress, serverPort);
+                    tcpClient = new TcpClientHandler(serverAddress, serverPort, notificationPort);
                     Console.WriteLine("Connected to the server successfully!");
                 }
                 catch (Exception ex)
@@ -58,7 +59,7 @@ namespace client
                 }
             }
 
-            // tcpClient.Connect();
+            tcpClient.ConnectToNotificationServer();
             var messageController = new MessageController(tcpClient);
             var gameService = new GameDriver(username, messageController);
             var gameUi = new GameUI(gameService);
