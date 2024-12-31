@@ -230,6 +230,9 @@ public class RoomRunner
             Console.WriteLine(response.Message);
             _gameUi.PlayGame(roomId, category, password);
             cts.Cancel();
+            RoomRunner roomRunner = new RoomRunner(_gameDriver, _room);
+            cts = new CancellationTokenSource();
+            roomRunner.ShowRoom(cts);
         }
         catch (Exception ex)
         {

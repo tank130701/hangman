@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"hangman/internal/errs"
+	ctx_repo "hangman/pkg/ctx-repo"
 	"net"
 )
 
@@ -22,12 +23,13 @@ type Server struct {
 	address            string
 	handlers           map[string]HandleFunc
 	notificationServer *NotificationServer
+	ctxRepo            *ctx_repo.CtxRepository
 
 	logger ILogger
 }
 
 // New создает новый сервер
-func New(address string, logger ILogger) *Server {
+func New(address string, ctxRepo *ctx_repo.CtxRepository, logger ILogger) *Server {
 	notificationSrv := NewNotificationServer(":8002", logger)
 	go func() {
 		if err := notificationSrv.Start(); err != nil {
@@ -40,6 +42,7 @@ func New(address string, logger ILogger) *Server {
 		handlers:           make(map[string]HandleFunc),
 		notificationServer: notificationSrv,
 		logger:             logger,
+		ctxRepo:            ctxRepo,
 	}
 }
 
@@ -79,22 +82,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 	clientAddr := conn.RemoteAddr().String()
 	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
 
-	// Создаём контекст с функцией отмены
-	ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
-
+	// Создаём контекст
+	ctx := context.Background()
 	// Пробрасываем соединение, логгер и функцию отмены в контекст
-	ctx = context.WithValue(ctx, "conn", conn)
-	ctx = context.WithValue(ctx, "logger", s.logger)
-	ctx = context.WithValue(ctx, "cancel", cancel)
-	ctx = context.WithValue(ctx, "notificationServer", s.notificationServer)
+	ctx = SetConn(ctx, conn)
+	ctx = SetLogger(ctx, s.logger)
+	ctx = SetNotificationServer(ctx, s.notificationServer)
+	s.ctxRepo.UpdateOrInsertCtx(clientAddr, ctx)
+	defer s.ctxRepo.CancelContext(clientAddr)
+
 	for {
 		var response []byte
 		message, err := readMessage(conn)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to read message: %v", err))
 			response = CreateErrorResponse(StatusInternalServerError, err.Error())
-			cancel()
+			s.ctxRepo.CancelContext(clientAddr)
 			break
 		} else {
 			response = s.processMessage(ctx, message)

@@ -147,12 +147,12 @@ namespace client.Infrastructure
             {
                 try
                 {
-                    if (_gameClient == null || !_gameClient.Connected)
-                    {
-                        // Logger.Warn("Client is not connected.");
-                        // return default;;
-                        Reconnect();
-                    }
+                    // if (_gameClient == null || !_gameClient.Connected)
+                    // {
+                    //     // Logger.Warn("Client is not connected.");
+                    //     // return default;;
+                    //     Reconnect();
+                    // }
                     var clientMessage = new ClientMessage
                     {
                         Command = command,
@@ -205,12 +205,12 @@ namespace client.Infrastructure
         {
             try
             {
-                if (_gameClient == null || !_gameClient.Connected)
-                {
-                    // Logger.Warn("Client is not connected.");
-                    // return default;;
-                    Reconnect();
-                }
+                // if (_gameClient == null || !_gameClient.Connected)
+                // {
+                //     // Logger.Warn("Client is not connected.");
+                //     // return default;;
+                //     Reconnect();
+                // }
 
                 if (_gameStream == null)
                 {
@@ -269,12 +269,12 @@ namespace client.Infrastructure
         {
             try
             {
-                if (_notificationClient == null || !_notificationClient.Connected)
-                {
-                    // Logger.Warn("Client is not connected.");
-                    // return default;;
-                    Reconnect();
-                }
+                // if (_notificationClient == null || !_notificationClient.Connected)
+                // {
+                //     // Logger.Warn("Client is not connected.");
+                //     // return default;;
+                //     Reconnect();
+                // }
 
                 if (_notificationStream == null)
                 {

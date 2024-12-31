@@ -38,12 +38,11 @@ type Room struct {
 // Конструктор для Room
 func NewRoom(ctx context.Context, id string, owner *string, maxPlayers int, password, category, difficulty string) *Room {
 	// Извлекаем логгер из контекста
-	logger, ok := ctx.Value("logger").(tcp_server.ILogger)
+	logger, ok := tcp_server.GetLogger(ctx)
 	if !ok {
 		logger = utils.NewCustomLogger(utils.LevelInfo)
 	}
-	//TODO: make ctxKeyPackage
-	notificationSrv, ok := ctx.Value("notificationServer").(*tcp_server.NotificationServer)
+	notificationSrv, ok := tcp_server.GetNotificationServer(ctx)
 	if !ok {
 		logger.Error("Failed to load notification server")
 	}
@@ -66,7 +65,7 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		<-ctx.Done() // Ожидаем отмены контекста
 
 		// Извлекаем логгер из контекста
-		logger, ok := ctx.Value("logger").(tcp_server.ILogger) // Предполагаем, что у вас есть интерфейс Logger
+		logger, ok := tcp_server.GetLogger(ctx)
 		if ok {
 			logger.Info(fmt.Sprintf("Player %s: context canceled, kicking from room", username))
 		} else {
@@ -85,7 +84,7 @@ func (r *Room) KickPlayer(username string) {
 
 	if player, exists := r.Players[username]; exists {
 		// Извлекаем функцию отмены контекста
-		cancel, ok := player.Ctx.Value("cancel").(context.CancelFunc)
+		cancel, ok := tcp_server.GetCancel(player.Ctx)
 		if ok {
 			cancel() // Отменяем контекст
 		}

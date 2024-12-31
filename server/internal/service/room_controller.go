@@ -6,8 +6,8 @@ import (
 	"hangman/internal/domain"
 	"hangman/internal/errs"
 	"hangman/internal/events"
+	ctx_repo "hangman/pkg/ctx-repo"
 	tcp "hangman/pkg/tcp-server"
-	"net"
 	"time"
 )
 
@@ -15,17 +15,20 @@ type RoomController struct {
 	roomRepo    domain.IRoomRepository
 	playerRepo  domain.IPlayerRepository
 	gameService domain.IGameService
+	ctxRepo     *ctx_repo.CtxRepository
 }
 
 func NewRoomController(
 	roomRepo domain.IRoomRepository,
 	playerRepo domain.IPlayerRepository,
 	gameService domain.IGameService,
+	ctxRepo *ctx_repo.CtxRepository,
 ) *RoomController {
 	return &RoomController{
 		roomRepo:    roomRepo,
 		playerRepo:  playerRepo,
 		gameService: gameService,
+		ctxRepo:     ctxRepo,
 	}
 }
 
@@ -66,6 +69,9 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 	// Проверяем текущего игрока
 	existingPlayer := room.HasPlayer(username)
 
+	conn, _ := tcp.GetConn(ctx)
+	connAddr := conn.RemoteAddr().String()
+
 	switch room.RoomState {
 	case domain.Waiting, domain.GameOver:
 		if !existingPlayer && room.GetPlayerCount() >= room.MaxPlayers {
@@ -73,7 +79,6 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 			return nil, errs.NewError(tcp.StatusConflict, "room is full, cannot join")
 		}
 
-		conn := ctx.Value("conn").(net.Conn)
 		// Новый или реконнект существующего игрока
 		player := domain.NewPlayer(ctx, &conn, username, 0)
 
@@ -83,12 +88,19 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 			return nil, err
 		}
 
+		//Обновляем контекст пользователя
+		rc.ctxRepo.UpdateOrInsertCtx(connAddr, ctx)
+
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
 			room.MonitorContext(ctx, username)
 		}
-		room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: player.Username})
+
+		err = room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: player.Username})
+		if err != nil {
+			return nil, err
+		}
 		return room, nil
 
 	case domain.InProgress:
@@ -108,7 +120,14 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 		if err != nil {
 			return nil, err
 		}
-		room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: username})
+
+		//Обновляем контекст пользователя
+		rc.ctxRepo.UpdateOrInsertCtx(connAddr, ctx)
+
+		err = room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: username})
+		if err != nil {
+			return nil, err
+		}
 		return room, nil
 	}
 

@@ -2,10 +2,9 @@ package tcp_server
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/proto"
 	"net"
 	"sync"
-
-	"google.golang.org/protobuf/proto"
 )
 
 // NotificationServer отвечает за управление уведомлениями.
@@ -62,7 +61,7 @@ func (n *NotificationServer) handleConnection(conn net.Conn) {
 		n.logger.Info(fmt.Sprintf("Notification client disconnected: %s", conn.RemoteAddr().String()))
 	}()
 
-	// Чтение здесь для того чтобы конекшн просто не падал
+	// Чтение здесь для того, чтобы конекшн просто не падал
 	buffer := make([]byte, 1024)
 	for {
 		m, err := conn.Read(buffer)
