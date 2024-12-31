@@ -19,18 +19,27 @@ type ILogger interface {
 }
 
 type Server struct {
-	address  string
-	handlers map[string]HandleFunc
+	address            string
+	handlers           map[string]HandleFunc
+	notificationServer *NotificationServer
 
 	logger ILogger
 }
 
 // New создает новый сервер
 func New(address string, logger ILogger) *Server {
+	notificationSrv := NewNotificationServer(":8002", logger)
+	go func() {
+		if err := notificationSrv.Start(); err != nil {
+			logger.Fatal(fmt.Sprintf("Failed to start notification server: %v", err))
+		}
+	}()
+
 	return &Server{
-		address:  address,
-		handlers: make(map[string]HandleFunc),
-		logger:   logger,
+		address:            address,
+		handlers:           make(map[string]HandleFunc),
+		notificationServer: notificationSrv,
+		logger:             logger,
 	}
 }
 
@@ -73,7 +82,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 	ctx = context.WithValue(ctx, "conn", conn)
 	ctx = context.WithValue(ctx, "logger", s.logger)
 	ctx = context.WithValue(ctx, "cancel", cancel)
-
+	ctx = context.WithValue(ctx, "notificationServer", s.notificationServer)
 	for {
 		var response []byte
 		message, err := readMessage(conn)

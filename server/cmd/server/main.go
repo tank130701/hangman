@@ -40,9 +40,4 @@ func main() {
 	if err := srv.Start(); err != nil {
 		logger.Fatal(fmt.Sprintf("Failed to start server: %v", err))
 	}
-
-	notificationSrv := tcp_server.NewNotificationServer(":8002", logger)
-	if err := notificationSrv.Start(); err != nil {
-		logger.Fatal(fmt.Sprintf("Failed to start notification server: %v", err))
-	}
 }
