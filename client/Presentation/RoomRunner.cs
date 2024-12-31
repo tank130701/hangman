@@ -80,9 +80,14 @@ public class RoomRunner
 
         if (_room.Owner == playerUsername)
         {
-            Console.WriteLine("[S] Start Game");
-            Console.WriteLine("[D] Delete Room");
-            Console.WriteLine("[Q] Quit to Main Menu");
+            if (_room.Owner == playerUsername)
+            {
+                Console.WriteLine("[S] Start Game");
+                Console.WriteLine("[D] Delete Room");
+                Console.WriteLine("[C] Change Category (not implemented)");
+                Console.WriteLine("[L] Change Difficulty (not implemented)");
+                Console.WriteLine("[Q] Quit to Main Menu");
+            }
         }
 
         if (_room.RoomState == "InProgress")
@@ -150,25 +155,25 @@ public class RoomRunner
         RenderRoomState(_playerUsername);
         while ((_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _playerUsername) && !cts.Token.IsCancellationRequested)
 
-            // if (_room.Owner != _playerUsername)
+        // if (_room.Owner != _playerUsername)
+        {
+            // Проверяем, был ли отменен токен
+            cts.Token.ThrowIfCancellationRequested();
+            try
             {
-                // Проверяем, был ли отменен токен
-                cts.Token.ThrowIfCancellationRequested();
-                try
-                {
-                    PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password);
-                }
-                catch (Exception ex)
-                {
-                    _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                    Console.WriteLine($"Waiting canceled: {ex}");
-                }
-
-                // HandleUserInput(cts, _playerUsername);
-
-                // Если уже в игре 
-                // Thread.Sleep(1000);
+                PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password);
             }
+            catch (Exception ex)
+            {
+                _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
+                Console.WriteLine($"Waiting canceled: {ex}");
+            }
+
+            // HandleUserInput(cts, _playerUsername);
+
+            // Если уже в игре 
+            // Thread.Sleep(1000);
+        }
         // if (_room.Owner != _playerUsername)
         {
             try

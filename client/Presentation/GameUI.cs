@@ -44,12 +44,69 @@ public class GameUI
             }
         } while (string.IsNullOrEmpty(_roomPassword));
 
-        Console.Write("Choose Category: ");
-        string category = ChooseCategory();
+        string? category = null;
+        string? difficulty = null;
 
-        Console.Write("Choose Difficulty: ");
-        string difficulty = ChooseDifficulty();
+        while (true)
+        {
+            // Выбор категории
+            if (category == null)
+            {
+                Console.Write("Choose Category: ");
+                category = ChooseCategory();
+                if (category == null)
+                {
+                    Console.WriteLine("Category selection canceled. Returning to Room ID entry.");
+                    return; // Полный выход из процесса
+                }
+            }
 
+            // Выбор сложности
+            Console.Write("Choose Difficulty: ");
+            difficulty = ChooseDifficulty();
+            if (difficulty == null)
+            {
+                Console.WriteLine("Difficulty selection canceled. Returning to category selection.");
+                category = null; // Сброс категории для возврата к предыдущему этапу
+                continue;
+            }
+
+            // Подтверждение параметров
+            Console.WriteLine($"\nYou selected:\nCategory: {category}\nDifficulty: {difficulty}");
+            Console.WriteLine("Press Enter to confirm or choose an action:");
+            Console.WriteLine("[R] Re-select Difficulty");
+            Console.WriteLine("[C] Re-select Category");
+            Console.WriteLine("[Q] Cancel");
+
+            string? choice = Console.ReadLine()?.Trim().ToUpper();
+
+            if (string.IsNullOrEmpty(choice))
+            {
+                // Подтверждение по Enter
+                break;
+            }
+            else if (choice == "R")
+            {
+                // Возврат к выбору сложности
+                difficulty = null;
+            }
+            else if (choice == "C")
+            {
+                // Возврат к выбору категории
+                category = null;
+            }
+            else if (choice == "Q")
+            {
+                Console.WriteLine("Room creation canceled. Returning to main menu.");
+                return;
+            }
+            else
+            {
+                Console.WriteLine("Invalid choice. Please try again.");
+            }
+        }
+
+        // Создание комнаты с выбранными параметрами
         try
         {
             var response = _gameDriver.CreateRoom(roomId, _roomPassword, category, difficulty);
@@ -64,42 +121,45 @@ public class GameUI
         Console.ReadKey(true);
     }
 
+
     // Выбор категории
-    private string ChooseCategory()
+    private string? ChooseCategory()
     {
         ConsoleMenu categoryMenu = new ConsoleMenu("==>");
         categoryMenu.Header = "=== Choose a Category ===";
 
-        string selectedCategory = "животные"; // Default value
+        string? selectedCategory = null; // Изначально значение не выбрано
 
-        // Add menu items
+        // Добавляем пункты меню
         categoryMenu.addMenuItem(1, "Животные", () => { selectedCategory = "животные"; categoryMenu.hideMenu(); });
         categoryMenu.addMenuItem(2, "Фрукты", () => { selectedCategory = "фрукты"; categoryMenu.hideMenu(); });
         categoryMenu.addMenuItem(3, "Столицы", () => { selectedCategory = "столицы"; categoryMenu.hideMenu(); });
-        categoryMenu.addMenuItem(0, "Back", categoryMenu.hideMenu);
+        categoryMenu.addMenuItem(0, "Back", () => { selectedCategory = null; categoryMenu.hideMenu(); });
 
-        // Show the menu
+        // Показываем меню
         categoryMenu.showMenu();
         return selectedCategory;
     }
 
-    private string ChooseDifficulty()
+    // Выбор сложности
+    private string? ChooseDifficulty()
     {
         ConsoleMenu difficultyMenu = new ConsoleMenu("==>");
         difficultyMenu.Header = "=== Choose Difficulty ===";
 
-        string selectedDifficulty = "medium"; // Default value
+        string? selectedDifficulty = null; // Изначально значение не выбрано
 
-        // Add menu items
+        // Добавляем пункты меню
         difficultyMenu.addMenuItem(1, "Easy", () => { selectedDifficulty = "easy"; difficultyMenu.hideMenu(); });
         difficultyMenu.addMenuItem(2, "Medium", () => { selectedDifficulty = "medium"; difficultyMenu.hideMenu(); });
         difficultyMenu.addMenuItem(3, "Hard", () => { selectedDifficulty = "hard"; difficultyMenu.hideMenu(); });
-        difficultyMenu.addMenuItem(0, "Back", difficultyMenu.hideMenu);
+        difficultyMenu.addMenuItem(0, "Back", () => { selectedDifficulty = null; difficultyMenu.hideMenu(); });
 
-        // Show the menu
+        // Показываем меню
         difficultyMenu.showMenu();
         return selectedDifficulty;
     }
+
 
     // Отображение лидерборда
     public void ShowLeaderBoard()
