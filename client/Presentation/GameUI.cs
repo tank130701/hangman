@@ -121,7 +121,6 @@ public class GameUI
         Console.ReadKey(true);
     }
 
-
     // Выбор категории
     private string? ChooseCategory()
     {
@@ -159,8 +158,6 @@ public class GameUI
         difficultyMenu.showMenu();
         return selectedDifficulty;
     }
-
-
     // Отображение лидерборда
     public void ShowLeaderBoard()
     {

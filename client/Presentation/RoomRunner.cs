@@ -7,14 +7,16 @@ public class RoomRunner
 {
     private readonly IGameDriver _gameDriver;
     private JoinRoomResponse _room;
-    private GameProcessUI _gameUi;
+    private readonly GameProcessUI _gameUi;
     private readonly string _playerUsername;
+    private readonly RoomUpdater _roomUpdater;
     public RoomRunner(IGameDriver gameDriver, JoinRoomResponse room)
     {
         _room = room;
         _gameDriver = gameDriver;
         _gameUi = new GameProcessUI(gameDriver);
         _playerUsername = _gameDriver.GetCurrentPlayerUsername();
+        _roomUpdater = new RoomUpdater(gameDriver);
     }
     // Асинхронная обработка пользовательского ввода
     private async Task HandleUserInputAsync(CancellationTokenSource cts, string playerUsername)
@@ -38,6 +40,24 @@ public class RoomRunner
                     if (key == ConsoleKey.S && _room.Owner == playerUsername)
                     {
                         StartGame(_room.Id, _room.Password);
+                    }
+
+                    if (key == ConsoleKey.C && _room.Owner == playerUsername)
+                    {
+                        _roomUpdater.ChangeCategory(_room.Id, _room.Password);
+                        RenderRoomState(_playerUsername); //TODO: make events for this
+                    }
+
+                    if (key == ConsoleKey.L && _room.Owner == playerUsername)
+                    {
+                        _roomUpdater.ChangeDifficulty(_room.Id, _room.Password);
+                        RenderRoomState(_playerUsername); //TODO: make events for this
+                    }
+
+                    if (key == ConsoleKey.P && _room.Owner == playerUsername)
+                    {
+                        _roomUpdater.ChangePassword(_room.Id, _room.Password);
+                        RenderRoomState(_playerUsername); //TODO: make events for this
                     }
 
                     if (key == ConsoleKey.D && _room.Owner == playerUsername)
@@ -82,8 +102,9 @@ public class RoomRunner
         {
             Console.WriteLine("[S] Start Game");
             Console.WriteLine("[D] Delete Room");
-            Console.WriteLine("[C] Change Category (not implemented)");
-            Console.WriteLine("[L] Change Difficulty (not implemented)");
+            Console.WriteLine("[C] Change Category");
+            Console.WriteLine("[L] Change Difficulty");
+            Console.WriteLine("[P] Change Password");
             Console.WriteLine("[Q] Quit to Main Menu");
         }
 

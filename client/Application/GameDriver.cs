@@ -35,7 +35,26 @@ public class GameDriver : IGameDriver
 
         return SendMessage<CreateRoomResponse>("CREATE_ROOM", request);
     }
+    public UpdateRoomResponse UpdateRoom(
+        string roomId,
+        string password,
+        string? category,
+        string? difficulty,
+        string? newPassword
+    )
+    {
+        var request = new UpdateRoomRequest
+        {
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password,
+            Category = category,
+            Difficulty = difficulty,
+            NewPassword = newPassword
+        };
 
+        return SendMessage<UpdateRoomResponse>("UPDATE_ROOM", request);
+    }
     public StartGameResponse StartGame(string roomId, string password)
     {
         var request = new StartGameRequest

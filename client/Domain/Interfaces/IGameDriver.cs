@@ -8,6 +8,13 @@ namespace client.Domain.Interfaces
     {
         string GetCurrentPlayerUsername();
         CreateRoomResponse CreateRoom(string roomId, string password, string category, string difficulty);
+        UpdateRoomResponse UpdateRoom(
+            string roomId,
+            string password,
+            string? category,
+            string? difficulty,
+            string? newPassword
+        );
         StartGameResponse StartGame(string roomId, string password);
         JoinRoomResponse JoinRoom(string roomId, string password);
         LeaveRoomResponse LeaveFromRoom(string roomId, string password);
