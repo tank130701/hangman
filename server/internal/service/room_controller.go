@@ -90,7 +90,7 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 
 		//Обновляем контекст пользователя
 		rc.ctxRepo.UpdateOrInsertCtx(connAddr, ctx)
-
+		ctx, _ = rc.ctxRepo.GetContext(connAddr)
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
@@ -143,7 +143,9 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 	if err != nil {
 		return err
 	}
-	room.KickPlayer(player.Username) // Удаление из комнаты
+	connAddr := (*player.Conn).RemoteAddr().String()
+	ctx, _ := rc.ctxRepo.GetContext(connAddr)
+	room.KickPlayer(ctx, player.Username) // Удаление из комнаты
 	err = room.NotifyPlayers("PlayerLeft", events.PlayerLeftEventPayload{Username: player.Username})
 	if err != nil {
 		return err

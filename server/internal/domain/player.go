@@ -7,7 +7,6 @@ import (
 )
 
 type Player struct {
-	Ctx         context.Context
 	Username    string
 	Score       int
 	Conn        *net.Conn
@@ -22,7 +21,6 @@ func NewPlayer(
 	score int,
 ) *Player {
 	return &Player{
-		Ctx:         ctx,
 		Username:    name,
 		Score:       score,
 		Conn:        conn,

@@ -53,13 +53,13 @@ public class GameProcessUI
     {
         var hangmanDisplay = new HangmanDisplay();
         bool currentPlayerGameOver = false;
+        Thread.Sleep(300); // 1 секунда ожидания
 
         while (true)
         {
             try
             {
                 var gameState = _gameDriver.GetGameState(roomId);
-
                 // Проверяем, завершил ли текущий игрок игру
                 if (IsGameOver(gameState, _gameDriver.GetCurrentPlayerUsername()))
                 {
@@ -91,7 +91,7 @@ public class GameProcessUI
                     if (string.IsNullOrEmpty(input) || input.Length != 1 || !char.IsLetter(input[0]) || !hangmanDisplay.Contains(input[0]))
                     {
                         Console.WriteLine("Invalid input. Please enter a single Russian letter.");
-                        Thread.Sleep(1000);
+                        Thread.Sleep(500);
                         continue;
                     }
 

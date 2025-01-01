@@ -12,13 +12,13 @@ type ContextWithCancel struct {
 
 type CtxRepository struct {
 	mu       sync.Mutex
-	contexts map[string]ContextWithCancel
+	contexts map[string]*ContextWithCancel
 }
 
 // NewCtxRepository создает новый экземпляр CtxRepository.
 func NewCtxRepository() *CtxRepository {
 	return &CtxRepository{
-		contexts: make(map[string]ContextWithCancel),
+		contexts: make(map[string]*ContextWithCancel),
 	}
 }
 
@@ -30,12 +30,12 @@ func (repo *CtxRepository) UpdateOrInsertCtx(id string, ctx context.Context) {
 	// Если контекст уже существует, обновляем его
 	if ctxWithCancel, exists := repo.contexts[id]; exists {
 		ctxToUpdate, cancel := context.WithCancel(ctxWithCancel.ctx)
-		repo.contexts[id] = ContextWithCancel{ctx: ctxToUpdate, cancel: cancel}
+		repo.contexts[id] = &ContextWithCancel{ctx: ctxToUpdate, cancel: cancel}
 	}
 
 	// Создаем новый контекст с отменой
 	ctx, cancel := context.WithCancel(ctx)
-	repo.contexts[id] = ContextWithCancel{ctx: ctx, cancel: cancel}
+	repo.contexts[id] = &ContextWithCancel{ctx: ctx, cancel: cancel}
 }
 
 // GetContext возвращает контекст для указанного идентификатора.

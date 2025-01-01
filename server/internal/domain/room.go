@@ -72,17 +72,17 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		}
 		//time.Sleep(3 * time.Second)
 		// Кикаем игрока
-		r.KickPlayer(username)
+		r.KickPlayer(ctx, username)
 	}()
 }
 
-func (r *Room) KickPlayer(username string) {
+func (r *Room) KickPlayer(ctx context.Context, username string) {
 	r.Lock()
 	defer r.Unlock()
 
-	if player, exists := r.Players[username]; exists {
+	if _, exists := r.Players[username]; exists {
 		// Извлекаем функцию отмены контекста
-		cancel, ok := tcp_server.GetCancel(player.Ctx)
+		cancel, ok := tcp_server.GetCancel(ctx)
 		if ok {
 			cancel() // Отменяем контекст
 		}
