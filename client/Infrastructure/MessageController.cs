@@ -1,10 +1,11 @@
-using System.Text.Json;
 using client.Domain.Events;
+using NLog;
 using Tcp;
 namespace client.Infrastructure;
 
 public class MessageController
 {
+    private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly TcpClientHandler _clientHandler;
     private const int StatusSuccess = 2000;
     public MessageController(TcpClientHandler clientHandler)
@@ -40,7 +41,7 @@ public class MessageController
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error sending request: {ex.Message}");
+            _logger.Error(ex, "Error sending request: {Message}", ex.Message);
             throw;
         }
     }
@@ -55,10 +56,10 @@ public class MessageController
                 // Читаем сообщение из потока
                 // var stream = _clientHandler.GetStream();
                 var serverResponse = _clientHandler.ReadNotification<ServerResponse>();
-                // Console.WriteLine(serverResponse.ToString());
+                // _logger.Debug(serverResponse.ToString());
                 if (serverResponse == null)
                 {
-                    Console.WriteLine("No response received from server.");
+                    _logger.Warn("No response received from server.");
                     continue; // Пропускаем итерацию, если ответ пуст
                 }
 
@@ -86,12 +87,12 @@ public class MessageController
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Operation was canceled.");
+                _logger.Info("Operation was canceled.");
                 throw; // Пробрасываем исключение отмены
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Unexpected error during server communication: {ex.Message}");
+                _logger.Error($"Unexpected error during server communication: {ex.Message}");
                 // Проверяем, был ли запрошен токен отмены, и пробрасываем исключение отмены
                 // throw new OperationCanceledException(cancellationToken);
                 throw; // Пробрасываем другие исключения
@@ -105,7 +106,6 @@ public class MessageController
     /// <returns>Объект GameStartedEvent.</returns>
     public async Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken)
     {
-        // while (true)
         {
             cancellationToken.ThrowIfCancellationRequested(); // Проверяем токен отмены
 
@@ -114,16 +114,10 @@ public class MessageController
                 // Читаем сообщение из потока асинхронно
                 var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetNotificationStream(), cancellationToken);
 
-                if (serverResponse == null)
+                if (serverResponse?.Payload == null || serverResponse.Payload.IsEmpty)
                 {
-                    Console.WriteLine("No response received from server.");
-                    // continue; // Пропускаем итерацию, если ответ пуст
-                }
-
-                if (serverResponse.Payload == null || serverResponse.Payload.IsEmpty)
-                {
-                    Console.WriteLine("Received empty payload from server.");
-                    // continue; // Пропускаем итерацию, если payload пустой
+                    _logger.Warn("Received empty or null response from server.");
+                    return null;
                 }
 
                 // Обработка типа сообщения
@@ -144,12 +138,12 @@ public class MessageController
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("Operation was canceled.");
+                _logger.Info("Operation was canceled.");
                 throw; // Пробрасываем исключение отмены
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Unexpected error during server communication: {ex.Message}");
+                _logger.Error($"Unexpected error during server communication: {ex.Message}");
                 throw; // Пробрасываем другие исключения
             }
         }

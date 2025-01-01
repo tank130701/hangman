@@ -1,7 +1,6 @@
 using client.Domain.Events;
 using client.Domain.Interfaces;
 using client.Infrastructure;
-using Tcp;
 
 namespace client.Application;
 

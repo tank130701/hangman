@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using client.Domain.Events;
 using client.Domain.Interfaces;
 namespace client.Presentation;
@@ -30,14 +31,14 @@ public class RoomRunner
                     {
                         cts.Cancel();
                         _gameDriver.LeaveFromRoom(_room.Id, _room.Password);
-                        Console.WriteLine("Left the room. Returning to main menu...");
+                        Console.WriteLine("Left the room. Returning...");
                         return;
                     }
 
                     if (key == ConsoleKey.S && _room.Owner == playerUsername)
                     {
-                        StartGame(cts, _room.Id, _room.Password, _room.Category);
                         // cts.Cancel();
+                        StartGame(cts, _room.Id, _room.Password, _room.Category);
                         return;
                     }
 
@@ -102,13 +103,12 @@ public class RoomRunner
 
         Console.WriteLine("Waiting for the game to start...");
     }
-    private void PollGameStateAsync(CancellationTokenSource cts, string roomId, string category, string password)
+    private async Task PollGameStateAsync(CancellationTokenSource cts, string roomId, string category, string password)
     {
         try
         {
             // Получаем событие от сервера
-            var serverEvent = _gameDriver.TryToGetServerEvent(cts.Token);
-
+            var serverEvent = await _gameDriver.TryToGetServerEventAsync(cts.Token);
             // Обрабатываем событие в зависимости от типа
             switch (serverEvent)
             {
@@ -123,10 +123,10 @@ public class RoomRunner
                     Thread.Sleep(1000); // 1 секунда ожидания
                     break;
                 case GameStartedEvent gameStartedEvent:
-                    Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
                     if (_room.Owner != _playerUsername)
                     {
                         cts.Cancel();
+                        Console.WriteLine($"Game started with category: {gameStartedEvent.Category}, difficulty: {gameStartedEvent.Difficulty}");
                         _gameUi.PlayGame(roomId, category, password);
                     }
                     break;
@@ -153,7 +153,8 @@ public class RoomRunner
         Task.Run(() => HandleUserInputAsync(cts, _playerUsername));
 
         RenderRoomState(_playerUsername);
-        while ((_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _playerUsername) && !cts.Token.IsCancellationRequested)
+        while ((_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _playerUsername)
+        && !cts.Token.IsCancellationRequested)
 
         // if (_room.Owner != _playerUsername)
         {
@@ -161,7 +162,7 @@ public class RoomRunner
             cts.Token.ThrowIfCancellationRequested();
             try
             {
-                PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password);
+                PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password).Wait();
             }
             catch (Exception ex)
             {

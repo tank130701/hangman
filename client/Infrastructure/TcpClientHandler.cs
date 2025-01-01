@@ -58,34 +58,34 @@ namespace client.Infrastructure
             }
         }
 
-        private void Reconnect()
+        private void ReconnectToNotificationServer()
         {
             try
             {
                 // Закрываем старое соединение, если оно существует
-                if (_gameClient != null)
+                if (_notificationClient != null)
                 {
-                    _gameClient.Close();
-                    _gameClient.Dispose();
-                    _gameClient = null;
+                    _notificationClient.Close();
+                    _notificationClient.Dispose();
+                    _notificationClient = null;
                 }
 
                 // Создаём новый TcpClient
-                _gameClient = new TcpClient();
+                _notificationClient = new TcpClient();
 
                 Console.WriteLine("Attempting to reconnect...");
 
                 // Выполняем подключение
-                _gameClient.Connect(_address, _gamePort);
+                _notificationClient.Connect(_address, _notificationPort);
 
                 // Проверяем состояние подключения
-                if (!_gameClient.Connected)
+                if (!_notificationClient.Connected)
                 {
                     throw new Exception("Failed to establish a connection with the server.");
                 }
 
                 // Обновляем поток
-                _gameStream = _gameClient.GetStream();
+                _notificationStream = _notificationClient.GetStream();
 
                 Console.WriteLine("Reconnected successfully!");
             }
@@ -100,7 +100,6 @@ namespace client.Infrastructure
                 throw;
             }
         }
-
 
         /// <summary>
         /// Сериализует объект в JSON-строку.
@@ -209,7 +208,7 @@ namespace client.Infrastructure
                 // {
                 //     // Logger.Warn("Client is not connected.");
                 //     // return default;;
-                //     Reconnect();
+                //     ReconnectToNotificationServer();
                 // }
 
                 if (_gameStream == null)
@@ -269,12 +268,12 @@ namespace client.Infrastructure
         {
             try
             {
-                // if (_notificationClient == null || !_notificationClient.Connected)
-                // {
-                //     // Logger.Warn("Client is not connected.");
-                //     // return default;;
-                //     Reconnect();
-                // }
+                if (_notificationClient == null || !_notificationClient.Connected)
+                {
+                    // Logger.Warn("Client is not connected.");
+                    // return default;;
+                    ReconnectToNotificationServer();
+                }
 
                 if (_notificationStream == null)
                 {
@@ -329,6 +328,26 @@ namespace client.Infrastructure
         {
             try
             {
+                if (_notificationClient == null || !_notificationClient.Connected)
+                {
+                    // Logger.Warn("Client is not connected.");
+                    // return default;;
+                    ReconnectToNotificationServer();
+
+                    if (_notificationClient != null)
+                    {
+                        stream = _notificationClient.GetStream();
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Notification client is not initialized.");
+                    }
+                }
+
+                if (stream == null || !stream.CanRead)
+                {
+                    throw new InvalidOperationException("NetworkStream is not available for reading.");
+                }
                 // Читаем префикс длины (4 байта)
                 byte[] header = new byte[4];
                 int headerRead = await ReadWithCancellationAsync(stream, header, 0, header.Length, cancellationToken);

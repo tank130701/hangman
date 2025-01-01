@@ -144,6 +144,10 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 		return err
 	}
 	room.KickPlayer(player.Username) // Удаление из комнаты
+	err = room.NotifyPlayers("PlayerLeft", events.PlayerLeftEventPayload{Username: player.Username})
+	if err != nil {
+		return err
+	}
 	//err = rc.playerRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
 	//if err != nil {
 	//	return err

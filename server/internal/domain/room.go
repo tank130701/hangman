@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hangman/internal/events"
 	tcp_server "hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 	"net"
@@ -74,7 +73,6 @@ func (r *Room) MonitorContext(ctx context.Context, username string) {
 		//time.Sleep(3 * time.Second)
 		// Кикаем игрока
 		r.KickPlayer(username)
-		r.NotifyPlayers("PlayerLeft", events.PlayerLeftEventPayload{Username: username})
 	}()
 }
 
@@ -168,6 +166,8 @@ func (r *Room) GetAllPlayers() []string {
 }
 
 func (r *Room) NotifyPlayers(event string, payload interface{}) error {
+	logger := utils.NewCustomLogger(utils.LevelInfo)
+
 	// Сериализация данных события
 	message, err := json.Marshal(payload)
 	if err != nil {
@@ -178,7 +178,7 @@ func (r *Room) NotifyPlayers(event string, payload interface{}) error {
 	clients := r.getConnectedClientsIPs()
 
 	if len(clients) == 0 {
-		return fmt.Errorf("no connected clients to notify")
+		logger.Debug("no connected clients to notify")
 	}
 
 	// Отправка уведомлений
