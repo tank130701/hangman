@@ -22,6 +22,7 @@ func NewHandler(controller domain.IRoomController) *Handler {
 
 func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("CREATE_ROOM", h.handleCreateRoomRequest)
+	srv.RegisterHandler("UPDATE_ROOM", h.handleUpdateRoomRequest)
 	srv.RegisterHandler("START_GAME", h.handleStartGameRequest)
 	srv.RegisterHandler("JOIN_ROOM", h.handleJoinRoomRequest)
 	srv.RegisterHandler("LEAVE_ROOM", h.handleLeaveRoomRequest)
@@ -46,6 +47,29 @@ func (h *Handler) handleCreateRoomRequest(ctx context.Context, message []byte) (
 
 	response := CreateRoomResponse{
 		Message: "Room has been created successfully",
+		RoomID:  room.ID,
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, errs.NewError(tcp_server.StatusInternalServerError, err.Error())
+	}
+	return responseBytes, nil
+}
+
+func (h *Handler) handleUpdateRoomRequest(ctx context.Context, message []byte) ([]byte, error) {
+	var req UpdateRoomRequest
+	if err := json.Unmarshal(message, &req); err != nil {
+		return nil, errs.NewError(tcp_server.StatusBadRequest, "Invalid CREATE_ROOM payload")
+	}
+	clientKey := domain.NewClientKey(req.PlayerUsername, req.Password)
+	room, err := h.RoomController.UpdateRoom(req.RoomID, clientKey, req.NewPassword, req.Category, req.Difficulty)
+	if err != nil {
+		return nil, errs.NewError(tcp_server.StatusInternalServerError, err.Error())
+	}
+
+	response := UpdateRoomResponse{
+		Message: "Room has been updated successfully",
 		RoomID:  room.ID,
 	}
 

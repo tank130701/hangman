@@ -15,6 +15,7 @@ type IRoomRepository interface {
 
 type IRoomController interface {
 	CreateRoom(ctx context.Context, player string, roomID, password, category, difficulty string) (*Room, error)
+	UpdateRoom(roomID string, clientKey ClientKey, newPassword, newCategory, newDifficulty *string) (*Room, error)
 	JoinRoom(ctx context.Context, username, roomID, password string) (*Room, error)
 	StartGame(clientKey ClientKey, roomID string) error
 	MakeGuess(clientKey ClientKey, roomID string, letter rune) (bool, string, error)

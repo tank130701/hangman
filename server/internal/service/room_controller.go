@@ -54,6 +54,42 @@ func (rc *RoomController) CreateRoom(ctx context.Context, player string, roomID,
 	return room, nil
 }
 
+func (rc *RoomController) UpdateRoom(roomID string, clientKey domain.ClientKey, newPassword, newCategory, newDifficulty *string) (*domain.Room, error) {
+	// Получаем данные игрока по ключу клиента
+	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return nil, errs.NewError(tcp.StatusNotFound, "player not found")
+	}
+
+	// Найти комнату по идентификатору
+	room, err := rc.roomRepo.GetRoomByID(roomID)
+	if err != nil {
+		return nil, errs.NewError(tcp.StatusNotFound, "room not found")
+	}
+
+	// Проверяем, является ли пользователь владельцем комнаты
+	if room.Owner == nil || *room.Owner != player.Username {
+		return nil, errs.NewError(tcp.StatusUnauthorized, "only the owner can update the room")
+	}
+	// Обновить поля комнаты, если предоставлены новые значения
+	if newPassword != nil {
+		room.Password = *newPassword
+	}
+	if newCategory != nil {
+		room.Category = *newCategory
+	}
+	if newDifficulty != nil {
+		room.Difficulty = *newDifficulty
+	}
+
+	// Сохранить обновленную комнату в репозитории
+	if err := rc.roomRepo.UpdateRoom(room); err != nil {
+		return nil, errs.NewError(tcp.StatusInternalServerError, "failed to update room")
+	}
+
+	return room, nil
+}
+
 func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, password string) (*domain.Room, error) {
 	room, err := rc.roomRepo.GetRoomByID(roomID)
 	if err != nil {
