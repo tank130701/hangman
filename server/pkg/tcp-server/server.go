@@ -1,14 +1,14 @@
 package tcp_server
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hangman/internal/errs"
-	"hangman/pkg/utils"
-	"net"
-
 	"google.golang.org/protobuf/proto"
+	"hangman/internal/errs"
+	ctx_repo "hangman/pkg/ctx-repo"
+	"net"
 )
 
 type ILogger interface {
@@ -16,21 +16,33 @@ type ILogger interface {
 	Warning(msg string)
 	Error(msg string)
 	Debug(msg string)
+	Fatal(msg string)
 }
 
 type Server struct {
-	address  string
-	handlers map[string]HandleFunc
+	address            string
+	handlers           map[string]HandleFunc
+	notificationServer *NotificationServer
+	ctxRepo            *ctx_repo.CtxRepository
 
 	logger ILogger
 }
 
 // New создает новый сервер
-func New(address string, logger ILogger) *Server {
+func New(address string, ctxRepo *ctx_repo.CtxRepository, logger ILogger) *Server {
+	notificationSrv := NewNotificationServer(":8002", logger)
+	go func() {
+		if err := notificationSrv.Start(); err != nil {
+			logger.Fatal(fmt.Sprintf("Failed to start notification server: %v", err))
+		}
+	}()
+
 	return &Server{
-		address:  address,
-		handlers: make(map[string]HandleFunc),
-		logger:   logger,
+		address:            address,
+		handlers:           make(map[string]HandleFunc),
+		notificationServer: notificationSrv,
+		logger:             logger,
+		ctxRepo:            ctxRepo,
 	}
 }
 
@@ -61,17 +73,34 @@ func (s *Server) Start() error {
 
 // handleConnection обрабатывает подключение клиента
 func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		// s.mu.Lock()
+		// s.mu.Unlock()
+		s.logger.Info(fmt.Sprintf("Game client disconnected: %s", conn.RemoteAddr().String()))
+	}()
 	clientAddr := conn.RemoteAddr().String()
 	s.logger.Info(fmt.Sprintf("New connection from %s", clientAddr))
+
+	// Создаём контекст
+	ctx := context.Background()
+	// Пробрасываем соединение, логгер и функцию отмены в контекст
+	ctx = SetConn(ctx, conn)
+	ctx = SetLogger(ctx, s.logger)
+	ctx = SetNotificationServer(ctx, s.notificationServer)
+	s.ctxRepo.UpdateOrInsertCtx(clientAddr, ctx)
+	defer s.ctxRepo.CancelContext(clientAddr)
 
 	for {
 		var response []byte
 		message, err := readMessage(conn)
 		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to read message: %v", err))
+			s.ctxRepo.CancelContext(clientAddr)
 			response = CreateErrorResponse(StatusInternalServerError, err.Error())
+			break
 		} else {
-			response = s.processMessage(message, conn)
+			response = s.processMessage(ctx, message)
 		}
 		writeMessage(conn, response)
 	}
@@ -111,7 +140,7 @@ func writeMessage(conn net.Conn, message []byte) error {
 	return nil
 }
 
-func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
+func (s *Server) processMessage(ctx context.Context, message []byte) []byte {
 	// Парсим сообщение клиента
 	var clientMsg ClientMessage
 	if err := proto.Unmarshal(message, &clientMsg); err != nil {
@@ -129,7 +158,7 @@ func (s *Server) processMessage(message []byte, conn net.Conn) []byte {
 	}
 
 	// Обрабатываем полезную нагрузку
-	responsePayload, err := handler(conn, clientMsg.Payload)
+	responsePayload, err := handler(ctx, clientMsg.Payload)
 	if err != nil {
 		var customErr *errs.Error
 		if errors.As(err, &customErr) {
@@ -167,30 +196,4 @@ func CreateErrorResponse(code int32, msg string) []byte {
 
 	respBytes, _ := proto.Marshal(serverResp)
 	return respBytes
-}
-
-func Notify(event string, payload []byte, clients []net.Conn) {
-	localLogger := utils.NewCustomLogger(utils.LevelDebug)
-	for _, conn := range clients {
-		// Формируем сообщение
-		serverResp := &ServerResponse{
-			StatusCode: 2000,
-			Message:    event,
-			Payload:    payload,
-		}
-
-		// Сериализация ответа
-		respBytes, err := proto.Marshal(serverResp)
-		if err != nil {
-			localLogger.Error(fmt.Sprintf("Failed to serialize notification for %s: %v", conn.RemoteAddr().String(), err))
-			continue
-		}
-
-		// Отправка сообщения
-		if err := writeMessage(conn, respBytes); err != nil {
-			localLogger.Error(fmt.Sprintf("Failed to send notification to %s: %v", conn.RemoteAddr().String(), err))
-			continue
-		}
-		localLogger.Info(fmt.Sprintf("Notify: %s, Payload: %s", serverResp.Message, serverResp.Payload))
-	}
 }

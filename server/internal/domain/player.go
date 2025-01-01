@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"net"
 	"time"
 )
@@ -8,15 +9,16 @@ import (
 type Player struct {
 	Username    string
 	Score       int
-	Conn        net.Conn
+	Conn        *net.Conn
 	IsConnected bool      // Поле для проверки подключения
 	LastActive  time.Time // Время последней активности
 }
 
 func NewPlayer(
+	ctx context.Context,
+	conn *net.Conn,
 	name string,
 	score int,
-	conn net.Conn,
 ) *Player {
 	return &Player{
 		Username:    name,

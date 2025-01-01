@@ -2,28 +2,66 @@
 using client.Infrastructure;
 using client.Menu;
 using client.Presentation;
+using NLog;
 using System.Diagnostics;
 
 namespace client
 {
+
     class Program
     {
         // Создание окна для логов
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
         static void Main(string[] args)
         {
+
+            // Настройка NLog
+            LogManager.LoadConfiguration("NLog.config");
+            // Пример логирования
+            logger.Info("Log console started.");
+
             Console.Clear();
             // Создаем экземпляр класса InputHandler
             InputHandler inputHandler = new InputHandler();
 
             // Получаем имя пользователя и адрес сервера
             string username = inputHandler.GetValidatedUsername();
-            string serverAddress = inputHandler.GetValidatedServerAddress();
+            // string serverAddress = inputHandler.GetValidatedServerAddress();
 
-            Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
+            // string username = "test";
+            string serverAddress = "127.0.0.1";
+
+            // Console.WriteLine($"\nWelcome, {username}! Connecting to server at {serverAddress}...");
             const int serverPort = 8001; // Порт сервера
-           
-            var tcpClient = new TcpClientHandler(serverAddress, serverPort);
-            var gameService = new GameDriver(tcpClient, username);
+            const int notificationPort = 8002; // Порт для уведомлений
+            TcpClientHandler? tcpClient = null;
+
+            while (tcpClient == null)
+            {
+                try
+                {
+                    Console.WriteLine($"Attempting to connect to server at {serverAddress}:{serverPort}...");
+                    tcpClient = new TcpClientHandler(serverAddress, serverPort, notificationPort);
+                    Console.WriteLine("Connected to the server successfully!");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to connect to the server: {ex.Message}");
+
+                    Console.WriteLine("Would you like to try again? (Y/N)");
+                    var key = Console.ReadKey(intercept: true).Key;
+
+                    if (key == ConsoleKey.N)
+                    {
+                        Console.WriteLine("\nExiting the application.");
+                        Environment.Exit(0);
+                    }
+                }
+            }
+
+            tcpClient.ConnectToNotificationServer();
+            var messageController = new MessageController(tcpClient);
+            var gameService = new GameDriver(username, messageController);
             var gameUi = new GameUI(gameService);
 
             string headerText = "  _   _                                         " +
@@ -36,7 +74,7 @@ namespace client
                 Environment.NewLine + "                    |___/                      ";
 
             Console.Clear();
-            
+
             // Создаем основное меню
             ConsoleMenu mainMenu = new ConsoleMenu("==>");
             mainMenu.Header = headerText;
@@ -51,6 +89,7 @@ namespace client
 
             // Отображаем меню
             mainMenu.showMenu();
+
         }
 
         // Функция выхода

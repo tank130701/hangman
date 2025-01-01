@@ -9,27 +9,47 @@ using NLog;
 
 namespace client.Infrastructure
 {
-    /// <summary>
-    /// Класс для работы с TCP-сервером, включая отправку и получение сообщений с префиксом длины и Protobuf.
-    /// </summary>
     public class TcpClientHandler : IDisposable
     {
         private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
-        private readonly TcpClient _client;
-        private readonly NetworkStream _stream;
+        private readonly string _address;
+        private readonly int _gamePort;
+        private readonly int _notificationPort;
+        private TcpClient? _gameClient;
+        private TcpClient? _notificationClient;
+        private NetworkStream? _gameStream;
+        private NetworkStream? _notificationStream;
 
-        /// <summary>
-        /// Создает экземпляр TCP-клиента для подключения к серверу.
-        /// </summary>
-        /// <param name="address">IP-адрес сервера.</param>
-        /// <param name="port">Порт сервера.</param>
-        public TcpClientHandler(string address, int port)
+        public TcpClientHandler(string address, int gamePort, int notificationPort)
+        {
+            _address = address;
+            _gamePort = gamePort;
+            _notificationPort = notificationPort;
+            Connect();
+        }
+
+        public void Connect()
         {
             try
             {
-                _client = new TcpClient(address, port);
-                _stream = _client.GetStream();
-                Logger.Info($"Connected to server at {address}:{port}");
+                // Подключение к игровому серверу
+                _gameClient = new TcpClient(_address, _gamePort);
+                _gameStream = _gameClient.GetStream();
+                Logger.Info($"Connected to game server at {_address}:{_gamePort}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to connect to the server");
+                throw;
+            }
+        }
+        public void ConnectToNotificationServer()
+        {
+            try
+            {
+                _notificationClient = new TcpClient(_address, _notificationPort);
+                _notificationStream = _notificationClient.GetStream();
+                Logger.Info($"Connected to notification server at {_address}:{_notificationPort}");
             }
             catch (Exception ex)
             {
@@ -38,14 +58,27 @@ namespace client.Infrastructure
             }
         }
 
+        public async Task ReconnectToNotificationServerAsync()
+        {
+            if (_notificationClient != null)
+            {
+                _notificationClient.Close();
+            }
+
+            _notificationClient = new TcpClient();
+            await _notificationClient.ConnectAsync(_address, _notificationPort);
+            _notificationStream = _notificationClient.GetStream();
+            Logger.Info("Reconnected to notification server.");
+        }
+
         /// <summary>
         /// Сериализует объект в JSON-строку.
         /// </summary>
-        private static string SerializeToJson<T>(T obj)
+        public string SerializeToJson<T>(T obj)
         {
             var options = new JsonSerializerOptions
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 WriteIndented = false
             };
             return JsonSerializer.Serialize(obj, options);
@@ -54,11 +87,21 @@ namespace client.Infrastructure
         /// <summary>
         /// Десериализует JSON-строку в объект указанного типа.
         /// </summary>
-        private static T DeserializePayload<T>(ByteString payload)
+        public T DeserializePayload<T>(ByteString payload)
         {
             var jsonString = payload.ToStringUtf8();
             Logger.Debug($"Deserializing payload: {jsonString}");
-            return JsonSerializer.Deserialize<T>(jsonString);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                WriteIndented = false
+            };
+            var result = JsonSerializer.Deserialize<T>(jsonString, options);
+            if (result == null)
+            {
+                throw new InvalidOperationException("Deserialization resulted in a null object.");
+            }
+            return result;
         }
 
         /// <summary>
@@ -66,34 +109,63 @@ namespace client.Infrastructure
         /// </summary>
         public void SendMessage(string command, string payload)
         {
-            try
+            // const int maxRetries = 3; // Максимальное количество попыток
+            // int attempt = 0;
+
+            // while (attempt < maxRetries)
             {
-                var clientMessage = new ClientMessage
+                try
                 {
-                    Command = command,
-                    Payload = ByteString.CopyFromUtf8(payload)
-                };
+                    // if (_gameClient == null || !_gameClient.Connected)
+                    // {
+                    //     // Logger.Warn("Client is not connected.");
+                    //     // return default;;
+                    //     Reconnect();
+                    // }
+                    var clientMessage = new ClientMessage
+                    {
+                        Command = command,
+                        Payload = ByteString.CopyFromUtf8(payload)
+                    };
 
-                // Подготовка данных
-                byte[] data = clientMessage.ToByteArray();
-                byte[] header = BitConverter.GetBytes(data.Length);
+                    // Подготовка данных
+                    byte[] data = clientMessage.ToByteArray();
+                    byte[] header = BitConverter.GetBytes(data.Length);
 
-                // Приведение к big-endian, если необходимо
-                if (BitConverter.IsLittleEndian)
-                    Array.Reverse(header);
+                    // Приведение к big-endian, если необходимо
+                    if (BitConverter.IsLittleEndian)
+                        Array.Reverse(header);
 
-                // Отправка данных
-                _stream.Write(header, 0, header.Length);
-                _stream.Write(data, 0, data.Length);
+                    // Отправка данных
+                    if (_gameStream != null)
+                    {
+                        _gameStream.Write(header, 0, header.Length);
+                        _gameStream.Write(data, 0, data.Length);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Network stream is not initialized.");
+                    }
 
-                Logger.Info($"Sent command: {command}, Payload: {payload}");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Error sending message: {command}");
-                throw;
+                    Logger.Info($"Sent command: {command}, Payload: {payload}");
+                    return; // Успешная отправка, выходим из метода
+                }
+                catch (Exception ex)
+                {
+                    //     attempt++;
+                    // Logger.Error(ex, $"Error sending message: {command}. Attempt {attempt} of {maxRetries}");
+                    Logger.Error(ex, $"Error sending message: {command}.");
+                    //     if (attempt >= maxRetries)
+                    //     {
+                    throw; // Если достигнуто максимальное количество попыток, пробрасываем исключение
+                           //     }
+
+                    //     // Можно добавить небольшую задержку перед следующей попыткой
+                    //     System.Threading.Thread.Sleep(100); // Задержка в 100 миллисекунд
+                }
             }
         }
+
 
         /// <summary>
         /// Получает сообщение от сервера и десериализует его.
@@ -102,29 +174,55 @@ namespace client.Infrastructure
         {
             try
             {
-                // Читаем заголовок (длина сообщения)
+                // if (_gameClient == null || !_gameClient.Connected)
+                // {
+                //     // Logger.Warn("Client is not connected.");
+                //     // return default;;
+                //     ReconnectToNotificationServer();
+                // }
+
+                if (_gameStream == null)
+                {
+                    throw new InvalidOperationException("Network stream is not initialized.");
+                }
+                // _gameStream.ReadTimeout = 3000; // Установите таймаут в миллисекундах
+
                 byte[] header = new byte[4];
-                _stream.Read(header, 0, header.Length);
+                int bytesRead = _gameStream.Read(header, 0, header.Length);
+
+                if (bytesRead == 0)
+                {
+                    Logger.Warn("No bytes read from stream.");
+                    return new T();
+                }
 
                 if (BitConverter.IsLittleEndian)
                     Array.Reverse(header);
 
                 int messageLength = BitConverter.ToInt32(header, 0);
-
-                // Читаем тело сообщения
                 byte[] body = new byte[messageLength];
                 int totalBytesRead = 0;
+
                 while (totalBytesRead < messageLength)
                 {
-                    totalBytesRead += _stream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    int chunkSize = _gameStream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    if (chunkSize == 0)
+                    {
+                        Logger.Warn("No more bytes to read from stream.");
+                        return new T();
+                    }
+                    totalBytesRead += chunkSize;
                 }
 
-                // Парсинг сообщения
                 var parser = new MessageParser<T>(() => new T());
                 T message = parser.ParseFrom(body);
-
                 Logger.Info($"Received message: {message}");
                 return message;
+            }
+            catch (IOException ex) when (ex.InnerException is SocketException)
+            {
+                Logger.Warn("Read operation timed out or connection closed.");
+                return new T();
             }
             catch (Exception ex)
             {
@@ -133,16 +231,86 @@ namespace client.Infrastructure
             }
         }
 
-        public ServerResponse ReadMessageFromStream(NetworkStream stream)
+        /// <summary>
+        /// Получает сообщение от сервера и десериализует его.
+        /// </summary>
+        public T ReadNotification<T>() where T : IMessage<T>, new()
         {
             try
             {
+                // if (_notificationClient == null || !_notificationClient.Connected)
+                // {
+                //     // Logger.Warn("Client is not connected.");
+                //     // return default;;
+                //     ReconnectToNotificationServer();
+                // }
+
+                if (_notificationStream == null)
+                {
+                    throw new InvalidOperationException("Network stream is not initialized.");
+                }
+                // _gameStream.ReadTimeout = 3000; // Установите таймаут в миллисекундах
+
+                byte[] header = new byte[4];
+                int bytesRead = _notificationStream.Read(header, 0, header.Length);
+
+                if (bytesRead == 0)
+                {
+                    Logger.Warn("No bytes read from stream.");
+                    return new T();
+                }
+
+                if (BitConverter.IsLittleEndian)
+                    Array.Reverse(header);
+
+                int messageLength = BitConverter.ToInt32(header, 0);
+                byte[] body = new byte[messageLength];
+                int totalBytesRead = 0;
+
+                while (totalBytesRead < messageLength)
+                {
+                    int chunkSize = _notificationStream.Read(body, totalBytesRead, messageLength - totalBytesRead);
+                    if (chunkSize == 0)
+                    {
+                        Logger.Warn("No more bytes to read from stream.");
+                        return new T();
+                    }
+                    totalBytesRead += chunkSize;
+                }
+
+                var parser = new MessageParser<T>(() => new T());
+                T message = parser.ParseFrom(body);
+                Logger.Info($"Received message: {message}");
+                return message;
+            }
+            catch (IOException ex) when (ex.InnerException is SocketException)
+            {
+                Logger.Warn("Read operation timed out or connection closed.");
+                return new T();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error reading message from server");
+                throw;
+            }
+        }
+        public async Task<ServerResponse> ReadMessageFromStreamAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await ReconnectToNotificationServerAsync();
+                var stream = _notificationClient?.GetStream() ?? throw new InvalidOperationException("Notification client is not initialized.");
+
+                if (stream == null || !stream.CanRead)
+                {
+                    throw new InvalidOperationException("NetworkStream is not available for reading.");
+                }
                 // Читаем префикс длины (4 байта)
                 byte[] header = new byte[4];
-                int bytesRead = stream.Read(header, 0, header.Length);
-                if (bytesRead != header.Length)
+                int headerRead = await ReadWithCancellationAsync(stream, header, 0, header.Length, cancellationToken);
+                if (headerRead != header.Length)
                 {
-                    throw new Exception("Failed to read message length");
+                    throw new Exception("Failed to read message length.");
                 }
 
                 // Преобразуем заголовок в длину сообщения
@@ -154,41 +322,58 @@ namespace client.Infrastructure
 
                 // Читаем тело сообщения
                 byte[] body = new byte[messageLength];
-                bytesRead = 0;
+                int bytesRead = 0;
                 while (bytesRead < messageLength)
                 {
-                    int chunkSize = stream.Read(body, bytesRead, messageLength - bytesRead);
-                    if (chunkSize == 0)
+                    int chunkRead = await ReadWithCancellationAsync(stream, body, bytesRead, messageLength - bytesRead, cancellationToken);
+                    if (chunkRead == 0 && cancellationToken.IsCancellationRequested)
                     {
-                        throw new Exception("Connection closed by server");
+                        // Отмена чтения, но соединение остаётся открытым
+                        throw new OperationCanceledException("Read operation canceled.");
                     }
-                    bytesRead += chunkSize;
+                    bytesRead += chunkRead;
                 }
 
-                // Десериализуем сообщение с помощью Protobuf
-                var serverResponse = ServerResponse.Parser.ParseFrom(body);
-                return serverResponse;
+                // Десериализация
+                return ServerResponse.Parser.ParseFrom(body);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Operation was canceled, keeping connection alive.");
+                throw;
             }
             catch (Exception ex)
             {
-                throw new Exception($"Error reading message from stream: {ex.Message}", ex);
+                throw new OperationCanceledException($"Read operation canceled. {ex}");
             }
         }
 
-        /// <summary>
-        /// Закрывает соединение с сервером.
-        /// </summary>
-        public void Close()
+        private async Task<int> ReadWithCancellationAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var readTask = stream.ReadAsync(buffer, offset, count, linkedCts.Token);
             try
             {
-                _stream?.Close();
-                _client?.Close();
-                Logger.Info("Connection closed.");
+                // Ждём завершения чтения или отмены
+                var completedTask = await Task.WhenAny(readTask, Task.Delay(Timeout.Infinite, cancellationToken));
+                if (completedTask == readTask)
+                {
+                    return await readTask; // Успешное чтение
+                }
+
+                // Если задача отменена, выбрасываем исключение
+                linkedCts.Cancel(); // Сигнализируем об отмене
+                throw new OperationCanceledException("Operation canceled by token.");
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                Logger.Error(ex, "Error closing connection");
+                // В случае отмены возвращаем 0 байт для корректного поведения цикла
+                return 0;
+            }
+            catch (Exception)
+            {
+                // Пробрасываем исключения, кроме отмены
+                throw;
             }
         }
 
@@ -197,8 +382,19 @@ namespace client.Infrastructure
         /// </summary>
         public void Dispose()
         {
-            Close();
+            try
+            {
+                _gameStream?.Close();
+                _gameClient?.Close();
+
+                Logger.Info("Connections closed.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error disposing TcpClientHandler");
+            }
         }
+
         /// <summary>
         /// Возвращает поток NetworkStream для прямого чтения/записи.
         /// </summary>
@@ -206,13 +402,29 @@ namespace client.Infrastructure
         {
             try
             {
-                if (_stream == null || !_client.Connected)
+                if (_gameStream == null || _gameClient == null || !_gameClient.Connected)
                 {
                     throw new InvalidOperationException("No active connection to the server.");
                 }
-
                 Logger.Info("Returning active NetworkStream.");
-                return _stream;
+                return _gameStream;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error returning NetworkStream.");
+                throw;
+            }
+        }
+        public NetworkStream GetNotificationStream()
+        {
+            try
+            {
+                if (_notificationStream == null || _notificationClient == null || !_notificationClient.Connected)
+                {
+                    throw new InvalidOperationException("No active connection to the server.");
+                }
+                Logger.Info("Returning active NetworkStream.");
+                return _notificationStream;
             }
             catch (Exception ex)
             {

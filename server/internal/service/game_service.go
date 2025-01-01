@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"hangman/internal/domain"
+	"hangman/internal/events"
 	"hangman/internal/repository"
 )
 
@@ -37,7 +38,7 @@ func (gs *GameServiceImpl) StartGame(room *domain.Room) error {
 	}
 	room.SetState(domain.InProgress)
 	// Уведомляем игроков о начале игры
-	err := room.NotifyPlayers("GameStarted", domain.GameStartedPayload{
+	err := room.NotifyPlayers("GameStarted", events.GameStartedEventPayload{
 		Category:   room.Category,
 		Difficulty: room.Difficulty,
 	})

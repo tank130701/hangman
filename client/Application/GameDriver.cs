@@ -1,174 +1,164 @@
-using System.IO;
-using System.Text.Json;
+using client.Domain.Events;
 using client.Domain.Interfaces;
 using client.Infrastructure;
-using Tcp;
 
-namespace client.Application
+namespace client.Application;
+
+public class GameDriver : IGameDriver
 {
-    public class GameDriver : IGameDriver
+    private readonly MessageController _messageController;
+    private readonly string _playerUsername;
+
+    public GameDriver(string username, MessageController controller)
     {
-        private readonly TcpClientHandler _clientHandler;
-        private readonly string _playerUsername;
-
-        public GameDriver(TcpClientHandler clientHandler, string username)
+        _messageController = controller;
+        _playerUsername = username;
+    }
+    public string GetCurrentPlayerUsername()
+    { return _playerUsername; }
+    public Stream GetRoomStream()
+    {
+        // Здесь возвращаем существующий NetworkStream,
+        // который был открыт при подключении к комнате.
+        return _messageController.GetStream();
+    }
+    public CreateRoomResponse CreateRoom(string roomId, string password, string category, string difficulty)
+    {
+        var request = new CreateRoomRequest
         {
-            _clientHandler = clientHandler;
-            _playerUsername = username;
-        }
-        public string GetCurrentPlayerUsername()
-        { return _playerUsername; }
-        public Stream GetRoomStream()
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password,
+            Category = category,
+            Difficulty = difficulty
+        };
+
+        return SendMessage<CreateRoomResponse>("CREATE_ROOM", request);
+    }
+    public UpdateRoomResponse UpdateRoom(
+        string roomId,
+        string password,
+        string? category,
+        string? difficulty,
+        string? newPassword
+    )
+    {
+        var request = new UpdateRoomRequest
         {
-            // Здесь возвращаем существующий NetworkStream,
-            // который был открыт при подключении к комнате.
-            return _clientHandler.GetStream();
-        }
-        public CreateRoomResponse CreateRoom(string roomId, string password, string category, string difficulty)
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password,
+            Category = category,
+            Difficulty = difficulty,
+            NewPassword = newPassword
+        };
+
+        return SendMessage<UpdateRoomResponse>("UPDATE_ROOM", request);
+    }
+    public StartGameResponse StartGame(string roomId, string password)
+    {
+        var request = new StartGameRequest
         {
-            var request = new CreateRoomRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password,
-                Category = category,
-                Difficulty = difficulty
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password,
+        };
 
-            return SendMessage<CreateRoomResponse>("CREATE_ROOM", request);
-        }
+        return SendMessage<StartGameResponse>("START_GAME", request);
+    }
 
-        public StartGameResponse StartGame(string roomId, string password)
+    public JoinRoomResponse JoinRoom(string roomId, string password)
+    {
+        var request = new JoinRoomRequest
         {
-            var request = new StartGameRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password,
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password
+        };
 
-            return SendMessage<StartGameResponse>("START_GAME", request);
-        }
-
-        public JoinRoomResponse JoinRoom(string roomId, string password)
+        return SendMessage<JoinRoomResponse>("JOIN_ROOM", request);
+    }
+    public LeaveRoomResponse LeaveFromRoom(string roomId, string password)
+    {
+        var request = new LeaveRoomRequest
         {
-            var request = new JoinRoomRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password
+        };
 
-            return SendMessage<JoinRoomResponse>("JOIN_ROOM", request);
-        }
-        public LeaveRoomResponse LeaveFromRoom(string roomId, string password)
+        return SendMessage<LeaveRoomResponse>("LEAVE_ROOM", request);
+    }
+    public DeleteRoomResponse DeleteRoom(string roomId, string password)
+    {
+        var request = new DeleteRoomRequest
         {
-            var request = new LeaveRoomRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password
+        };
 
-            return SendMessage<LeaveRoomResponse>("LEAVE_ROOM", request);
-        }
-        public DeleteRoomResponse DeleteRoom(string roomId, string password)
+        return SendMessage<DeleteRoomResponse>("DELETE_ROOM", request);
+    }
+
+    public GuessLetterResponse SendGuess(string roomId, string password, char letter)
+    {
+        var request = new GuessLetterRequest
         {
-            var request = new DeleteRoomRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId,
+            Password = password,
+            Letter = letter.ToString()
+        };
 
-            return SendMessage<DeleteRoomResponse>("DELETE_ROOM", request);
-        }
+        return SendMessage<GuessLetterResponse>("GUESS_LETTER", request);
+    }
 
-        public GuessLetterResponse SendGuess(string roomId, string password, char letter)
+    public RoomGameStateResponse GetGameState(string roomId)
+    {
+        var request = new GetGameStateRequest
         {
-            var request = new GuessLetterRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId,
-                Password = password,
-                Letter = letter.ToString()
-            };
+            PlayerUsername = _playerUsername,
+            RoomID = roomId
+        };
 
-            return SendMessage<GuessLetterResponse>("GUESS_LETTER", request);
-        }
+        return SendMessage<RoomGameStateResponse>("GET_GAME_STATE", request);
+    }
 
-        public RoomGameStateResponse GetGameState(string roomId)
+    public GetRoomStateResponse GetRoomState(string roomId, string password)
+    {
+        var request = new GetRoomStateRequest
         {
-            var request = new GetGameStateRequest
-            {
-                PlayerUsername = _playerUsername,
-                RoomID = roomId
-            };
+            RoomID = roomId,
+            Password = password,
+        };
 
-            return SendMessage<RoomGameStateResponse>("GET_GAME_STATE", request);
-        }
+        return SendMessage<GetRoomStateResponse>("GET_ROOM_STATE", request);
+    }
 
-        public GetAllRoomsResponse GetAllRooms()
-        {
-            return SendMessage<GetAllRoomsResponse>("GET_ALL_ROOMS", null);
-        }
+    public GetAllRoomsResponse GetAllRooms()
+    {
+        return SendMessage<GetAllRoomsResponse>("GET_ALL_ROOMS", new object());
+    }
 
-        public GetLeaderBoardResponse GetLeaderBoard()
-        {
-            return SendMessage<GetLeaderBoardResponse>("GET_LEADERBOARD", null);
-        }
-        /// <summary>
-        /// Обрабатывает событие "GameStarted" из ServerResponse.
-        /// </summary>
-        /// <param name="serverResponse">Ответ сервера в формате protobuf.</param>
-        /// <returns>Объект GameStartedEvent.</returns>
-        public ServerResponse TryToGeServerEvent()
-        {
-            try
-            {
-                // Читаем сообщение из потока
-                var serverResponse = _clientHandler.ReadMessageFromStream(_clientHandler.GetStream());
-                // Если сообщение значимое, возвращаем его
-                return serverResponse;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reading message from stream: {ex.Message}");
-                throw;
-            }
-        }
+    public GetLeaderBoardResponse GetLeaderBoard()
+    {
+        return SendMessage<GetLeaderBoardResponse>("GET_LEADERBOARD", new object());
+    }
 
-        /// <summary>
-        /// Отправляет сообщение с командой и возвращает десериализованный ответ.
-        /// </summary>
-        private TResponse SendMessage<TResponse>(string command, object request)
-        {
-            try
-            {
-                // Сериализация запроса в JSON
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                };
-                string jsonRequest = JsonSerializer.Serialize(request, options);
-                _clientHandler.SendMessage(command, jsonRequest);
+    private TResponse SendMessage<TResponse>(string command, object request)
+    {
+        return _messageController.SendMessage<TResponse>(command, request);
+    }
 
-                // Чтение ответа от сервера
-                var response = _clientHandler.ReadMessage<ServerResponse>();
+    public async Task<GameEvent?> TryToGetServerEventAsync(CancellationToken cancellationToken)
+    {
+        return await _messageController.TryToGetServerEventAsync(cancellationToken);
+    }
 
-                if (response.StatusCode != 2000)
-                {
-                    throw new Exception($"Server returned error: {response.Message}");
-                }
-
-                // Десериализация полезной нагрузки
-                return JsonSerializer.Deserialize<TResponse>(response.Payload.ToStringUtf8(), options);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error sending request: {ex.Message}");
-                throw;
-            }
-        }
+    public GameEvent? TryToGetServerEvent(CancellationToken cancellationToken)
+    {
+        return _messageController.TryToGetServerEvent(cancellationToken);
     }
 }
+

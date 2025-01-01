@@ -17,6 +17,20 @@ type CreateRoomResponse struct {
 	RoomID  string `json:"room_id"`
 }
 
+type UpdateRoomRequest struct {
+	PlayerUsername string  `json:"player_username"`
+	RoomID         string  `json:"room_id"`
+	Password       string  `json:"password"`
+	Category       *string `json:"category"`
+	Difficulty     *string `json:"difficulty"`
+	NewPassword    *string `json:"new_password"`
+}
+
+type UpdateRoomResponse struct {
+	Message string `json:"message"`
+	RoomID  string `json:"room_id"`
+}
+
 type StartGameRequest struct {
 	PlayerUsername string `json:"player_username"`
 	RoomID         string `json:"room_id"`
@@ -56,7 +70,9 @@ type GetRoomStateRequest struct {
 	Password string `json:"password"`
 }
 type GetRoomStateResponse struct {
-	State string `json:"state"`
+	Owner   string      `json:"owner"`
+	State   string      `json:"state"`
+	Players []PlayerDTO `json:"players"`
 }
 
 type LeaveRoomRequest struct {

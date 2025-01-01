@@ -3,8 +3,6 @@ package repository
 import (
 	"errors"
 	"hangman/internal/domain"
-	"io"
-	"net"
 	"sync"
 	"time"
 )
@@ -27,7 +25,6 @@ func (r *InMemoryPlayerRepository) AddPlayer(key domain.ClientKey, player *domai
 	existingPlayer, exists := r.players[key]
 	if exists {
 		// Обновляем состояние существующего игрока
-		existingPlayer.Conn = player.Conn
 		existingPlayer.IsConnected = true
 		existingPlayer.LastActive = time.Now()
 		return nil // Возвращаем true если пользователь уже был в комнате
@@ -79,31 +76,6 @@ func (r *InMemoryPlayerRepository) GetPlayerCount() int {
 	defer r.mu.Unlock()
 
 	return len(r.players)
-}
-
-func (r *InMemoryPlayerRepository) CheckConnections() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	var disconnectedPlayers []string
-
-	for key, player := range r.players {
-		buffer := make([]byte, 1)
-		player.Conn.SetReadDeadline(time.Now().Add(10 * time.Millisecond))
-		_, err := player.Conn.Read(buffer)
-		if err != nil {
-			if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
-				// Добавляем имя отключенного игрока в список
-				disconnectedPlayers = append(disconnectedPlayers, player.Username)
-				delete(r.players, key)
-			}
-		} else {
-			// Если соединение активно, обновляем время последней активности
-			player.LastActive = time.Now()
-		}
-	}
-
-	return disconnectedPlayers
 }
 
 func (r *InMemoryPlayerRepository) MonitorConnections(timeout time.Duration, inactivePlayersChan chan<- []string) {

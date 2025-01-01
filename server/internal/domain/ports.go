@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"net"
+	"context"
 	"time"
 )
 
@@ -14,14 +14,15 @@ type IRoomRepository interface {
 }
 
 type IRoomController interface {
-	CreateRoom(player string, roomID, password, category, difficulty string) (*Room, error)
-	JoinRoom(conn net.Conn, username, roomID, password string) (*Room, error)
+	CreateRoom(ctx context.Context, player string, roomID, password, category, difficulty string) (*Room, error)
+	UpdateRoom(roomID string, clientKey ClientKey, newPassword, newCategory, newDifficulty *string) (*Room, error)
+	JoinRoom(ctx context.Context, username, roomID, password string) (*Room, error)
 	StartGame(clientKey ClientKey, roomID string) error
 	MakeGuess(clientKey ClientKey, roomID string, letter rune) (bool, string, error)
-	GetRoomState(roomID, password string) (*string, error)
+	GetRoomState(roomID, password string) (*Room, error)
 	DeleteRoom(clientKey ClientKey, roomID string) error
 	LeaveRoom(clientKey ClientKey, roomID string) error
-	HandleOwnerChange(roomID string) error
+	HandleOwnerChange(room *Room) error
 	CleanupRooms(timeoutSeconds int)
 	GetGameState(roomID string) (map[string]*GameState, error)
 	GetAllRooms() ([]*Room, error)
@@ -35,7 +36,6 @@ type IPlayerRepository interface {
 	RemovePlayerByUsername(username string) error
 	GetAllPlayers() []*Player
 	GetPlayerCount() int
-	CheckConnections() []string
 	MonitorConnections(timeout time.Duration, inactivePlayersChan chan<- []string)
 	UpdatePlayerActivity(key ClientKey) error
 	GetPlayerUsernamesAndScores() map[string]int

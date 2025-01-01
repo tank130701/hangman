@@ -1,9 +1,11 @@
 package domain
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	tcp_server "hangman/pkg/tcp-server"
+	"hangman/pkg/utils"
 	"net"
 	"sync"
 	"time"
@@ -18,17 +20,70 @@ const (
 )
 
 type Room struct {
-	ID           string
-	Owner        *string
-	Players      map[string]*Player // Используем map для хранения игроков
-	LastActivity time.Time
-	MaxPlayers   int
-	Password     string
-	Category     string
-	Difficulty   string
-	StateManager *GameStateManager
-	RoomState    roomState
-	mu           sync.RWMutex
+	ID                 string
+	Owner              *string
+	Players            map[string]*Player // Используем map для хранения игроков
+	notificationServer *tcp_server.NotificationServer
+	LastActivity       time.Time
+	MaxPlayers         int
+	Password           string
+	Category           string
+	Difficulty         string
+	StateManager       *GameStateManager
+	RoomState          roomState
+	mu                 sync.RWMutex
+}
+
+// Конструктор для Room
+func NewRoom(ctx context.Context, id string, owner *string, maxPlayers int, password, category, difficulty string) *Room {
+	// Извлекаем логгер из контекста
+	logger, ok := tcp_server.GetLogger(ctx)
+	if !ok {
+		logger = utils.NewCustomLogger(utils.LevelInfo)
+	}
+	notificationSrv, ok := tcp_server.GetNotificationServer(ctx)
+	if !ok {
+		logger.Error("Failed to load notification server")
+	}
+	return &Room{
+		ID:                 id,
+		Password:           password,
+		Owner:              owner,
+		Players:            make(map[string]*Player),
+		LastActivity:       time.Now(),
+		MaxPlayers:         maxPlayers,
+		Category:           category,
+		Difficulty:         difficulty,
+		RoomState:          Waiting,
+		notificationServer: notificationSrv,
+	}
+}
+
+func (r *Room) MonitorContext(ctx context.Context, username string) {
+	go func() {
+		<-ctx.Done() // Ожидаем отмены контекста
+
+		// Извлекаем логгер из контекста
+		logger, ok := tcp_server.GetLogger(ctx)
+		if ok {
+			logger.Info(fmt.Sprintf("Player %s: context canceled, kicking from room", username))
+		} else {
+			fmt.Printf("Player %s: context canceled, kicking from room (logger not found)\n", username)
+		}
+		//time.Sleep(3 * time.Second)
+		// Кикаем игрока
+		r.KickPlayer(username)
+	}()
+}
+
+func (r *Room) KickPlayer(username string) {
+	r.Lock()
+	defer r.Unlock()
+
+	if _, exists := r.Players[username]; exists {
+		// Удаляем игрока из комнаты
+		delete(r.Players, username)
+	}
 }
 
 func (r *Room) SetState(state roomState) {
@@ -78,15 +133,6 @@ func (r *Room) AddPlayer(player *Player) {
 	r.Players[player.Username] = player
 }
 
-func (r *Room) RemovePlayer(username string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.Players != nil {
-		delete(r.Players, username) // Удаление игрока из map
-	}
-}
-
 func (r *Room) HasPlayer(username string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -113,36 +159,45 @@ func (r *Room) GetAllPlayers() []string {
 	return players
 }
 
-type GameStartedEvent struct {
-	Event   string             `json:"event"`   // Тип события
-	Payload GameStartedPayload `json:"payload"` // Данные события
-}
+func (r *Room) NotifyPlayers(event string, payload interface{}) error {
+	logger := utils.NewCustomLogger(utils.LevelInfo)
 
-type GameStartedPayload struct {
-	Category   string `json:"category"`   // Категория игры
-	Difficulty string `json:"difficulty"` // Сложность игры
-}
-
-func (r *Room) NotifyPlayers(event string, payload GameStartedPayload) error {
 	// Сериализация данных события
 	message, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to serialize event: %w", err)
+		return fmt.Errorf("failed to serialize event payload: %w", err)
 	}
 
-	// Собираем список подключенных клиентов
-	var clients []net.Conn
+	// Получение списка подключенных клиентов
+	clients := r.getConnectedClientsIPs()
 
+	if len(clients) == 0 {
+		logger.Debug("no connected clients to notify")
+	}
+
+	// Отправка уведомлений
+	r.notificationServer.Notify(event, message, clients)
+
+	return nil
+}
+
+// Вспомогательный метод для получения списка подключенных клиентов
+func (r *Room) getConnectedClientsIPs() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	var clientIPs []string
 	for _, player := range r.Players {
-		if player.IsConnected && player.Username != *r.Owner {
-			clients = append(clients, player.Conn)
+		if player.IsConnected && player.Conn != nil {
+			remoteAddr := (*player.Conn).RemoteAddr().String()
+			// Извлекаем только IP-адрес из "IP:port"
+			host, _, err := net.SplitHostPort(remoteAddr)
+			if err == nil {
+				clientIPs = append(clientIPs, host)
+			} else {
+				fmt.Printf("failed to parse remote address: %v\n", err)
+			}
 		}
 	}
-
-	// Используем метод Notify для отправки сообщений
-	tcp_server.Notify(event, message, clients)
-	return nil
+	return clientIPs
 }
