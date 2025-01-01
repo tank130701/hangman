@@ -237,6 +237,7 @@ func (h *Handler) handleGetRoomStateRequest(ctx context.Context, message []byte)
 	// Формируем ответ DTO
 	players := ConvertPlayersToSlice(room.Players)
 	response := GetRoomStateResponse{
+		Owner:   *room.Owner,
 		Players: players,
 		State:   roomState,
 	}

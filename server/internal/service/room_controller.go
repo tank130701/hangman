@@ -90,11 +90,11 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 
 		//Обновляем контекст пользователя
 		rc.ctxRepo.UpdateOrInsertCtx(connAddr, ctx)
-		ctx, _ = rc.ctxRepo.GetContext(connAddr)
+		newCtx, _ := rc.ctxRepo.GetContext(connAddr)
 		// Если игрока еще нет в комнате, добавляем
 		if !existingPlayer {
 			room.AddPlayer(player)
-			room.MonitorContext(ctx, username)
+			room.MonitorContext(*newCtx, username)
 		}
 
 		err = room.NotifyPlayers("PlayerJoined", events.PlayerJoinedEventPayload{Username: player.Username})
@@ -144,8 +144,8 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 		return err
 	}
 	connAddr := (*player.Conn).RemoteAddr().String()
-	ctx, _ := rc.ctxRepo.GetContext(connAddr)
-	room.KickPlayer(ctx, player.Username) // Удаление из комнаты
+	rc.ctxRepo.CancelContext(connAddr)
+	room.KickPlayer(player.Username) // Удаление из комнаты
 	err = room.NotifyPlayers("PlayerLeft", events.PlayerLeftEventPayload{Username: player.Username})
 	if err != nil {
 		return err
@@ -272,6 +272,10 @@ func (rc *RoomController) GetRoomState(roomID, password string) (*domain.Room, e
 	if room.Password != "" && room.Password != password {
 		return nil, errs.NewError(tcp.StatusUnauthorized, "incorrect password")
 	}
+	err = rc.HandleOwnerChange(room)
+	if err != nil {
+		return nil, err
+	}
 
 	return room, nil
 }
@@ -286,10 +290,7 @@ func (rc *RoomController) GetGameState(roomID string) (map[string]*domain.GameSt
 	if err != nil {
 		return nil, err
 	}
-	err = rc.HandleOwnerChange(room)
-	if err != nil {
-		return nil, err
-	}
+
 	return rc.gameService.GetGameState(room)
 }
 

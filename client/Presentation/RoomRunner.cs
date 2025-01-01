@@ -57,10 +57,11 @@ public class RoomRunner
     private void RenderRoomState(string playerUsername)
     {
         var roomState = _gameDriver.GetRoomState(_room.Id, _room.Password);
+        _room.Owner = roomState.Owner;
         // Отображаем текущее состояние комнаты
         Console.Clear();
         Console.WriteLine($"=== Room: {_room.Id} ===");
-        Console.WriteLine($"Owner: {_room.Owner}");
+        Console.WriteLine($"Owner: {roomState.Owner}");
         Console.WriteLine($"Your username: {playerUsername}");
         Console.WriteLine("Players:");
 
@@ -77,24 +78,21 @@ public class RoomRunner
             Console.WriteLine($"- {playerName}");
         }
 
-        if (_room.Owner == playerUsername)
+        if (roomState.Owner == playerUsername)
         {
-            if (_room.Owner == playerUsername)
-            {
-                Console.WriteLine("[S] Start Game");
-                Console.WriteLine("[D] Delete Room");
-                Console.WriteLine("[C] Change Category (not implemented)");
-                Console.WriteLine("[L] Change Difficulty (not implemented)");
-                Console.WriteLine("[Q] Quit to Main Menu");
-            }
+            Console.WriteLine("[S] Start Game");
+            Console.WriteLine("[D] Delete Room");
+            Console.WriteLine("[C] Change Category (not implemented)");
+            Console.WriteLine("[L] Change Difficulty (not implemented)");
+            Console.WriteLine("[Q] Quit to Main Menu");
         }
 
-        if (_room.RoomState == "InProgress")
+        if (roomState.State == "InProgress")
         {
             Console.WriteLine("[R] Reconnect to game");
         }
 
-        if (_room.Owner != playerUsername && (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver"))
+        if (roomState.Owner != playerUsername && (roomState.State == "WaitingForPlayers" || roomState.State == "GameOver"))
         {
             Console.WriteLine("[Q] Quit to Main Menu");
         }
@@ -151,11 +149,10 @@ public class RoomRunner
         var cts = new CancellationTokenSource();
 
         while ((
-         _room.RoomState == "WaitingForPlayers"
-          || _room.RoomState == "GameOver"
-          ||
-         _room.Owner == _playerUsername)
-        && !cts.Token.IsCancellationRequested)
+            _room.RoomState == "WaitingForPlayers"
+         || _room.RoomState == "GameOver"
+         || _room.Owner == _playerUsername
+        ) && !cts.Token.IsCancellationRequested)
         // if (_room.Owner != _playerUsername)
         {
             // Если в ожидании игры 
@@ -195,8 +192,9 @@ public class RoomRunner
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to start game: {ex.Message}");
-                Console.WriteLine("Press any key to return to the main menu.");
+                Console.WriteLine("Press any key to return to the rooms menu.");
                 Console.ReadKey(true);
+                return;
                 // break;
             }
         }

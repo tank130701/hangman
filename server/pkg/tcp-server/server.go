@@ -96,8 +96,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		message, err := readMessage(conn)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to read message: %v", err))
-			response = CreateErrorResponse(StatusInternalServerError, err.Error())
 			s.ctxRepo.CancelContext(clientAddr)
+			response = CreateErrorResponse(StatusInternalServerError, err.Error())
 			break
 		} else {
 			response = s.processMessage(ctx, message)

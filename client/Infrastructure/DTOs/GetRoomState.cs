@@ -23,9 +23,10 @@ public class PlayerDTO
 
 public class GetRoomStateResponse
 {
+    [JsonPropertyName("owner")]
+    public required string Owner { get; set; } // Владелец комнаты
     [JsonPropertyName("state")]
     public required string State { get; set; } // Состояние комнаты (например, "WaitingForPlayers")
-
     [JsonPropertyName("players")]
     public required List<PlayerDTO> Players { get; set; } // Список игроков
 }

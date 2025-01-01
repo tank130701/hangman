@@ -39,7 +39,7 @@ func (repo *CtxRepository) UpdateOrInsertCtx(id string, ctx context.Context) {
 }
 
 // GetContext возвращает контекст для указанного идентификатора.
-func (repo *CtxRepository) GetContext(id string) (context.Context, bool) {
+func (repo *CtxRepository) GetContext(id string) (*context.Context, bool) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 
@@ -47,7 +47,7 @@ func (repo *CtxRepository) GetContext(id string) (context.Context, bool) {
 	if !exists {
 		return nil, false
 	}
-	return ctxWithCancel.ctx, true
+	return &ctxWithCancel.ctx, true
 }
 
 // CancelContext отменяет контекст для указанного идентификатора.
@@ -57,6 +57,6 @@ func (repo *CtxRepository) CancelContext(id string) {
 
 	if ctxWithCancel, exists := repo.contexts[id]; exists {
 		ctxWithCancel.cancel()
-		delete(repo.contexts, id) // Удаляем контекст из репозитория
+		//delete(repo.contexts, id) // Удаляем контекст из репозитория
 	}
 }
