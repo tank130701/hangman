@@ -112,7 +112,7 @@ public class MessageController
             try
             {
                 // Читаем сообщение из потока асинхронно
-                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(_clientHandler.GetNotificationStream(), cancellationToken);
+                var serverResponse = await _clientHandler.ReadMessageFromStreamAsync(cancellationToken);
 
                 if (serverResponse?.Payload == null || serverResponse.Payload.IsEmpty)
                 {

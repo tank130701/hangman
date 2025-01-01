@@ -9,6 +9,7 @@ public class RoomRunner
     private JoinRoomResponse _room;
     private GameProcessUI _gameUi;
     private readonly string _playerUsername;
+    private CancellationTokenSource cts = new CancellationTokenSource();
     public RoomRunner(IGameDriver gameDriver, JoinRoomResponse room)
     {
         _room = room;
@@ -17,7 +18,7 @@ public class RoomRunner
         _playerUsername = _gameDriver.GetCurrentPlayerUsername();
     }
     // Асинхронная обработка пользовательского ввода
-    private async Task HandleUserInputAsync(CancellationTokenSource cts, string playerUsername)
+    private async Task HandleUserInputAsync(string playerUsername)
     {
         try
         {
@@ -37,9 +38,7 @@ public class RoomRunner
 
                     if (key == ConsoleKey.S && _room.Owner == playerUsername)
                     {
-                        // cts.Cancel();
-                        StartGame(cts, _room.Id, _room.Password, _room.Category);
-                        return;
+                        StartGame(_room.Id, _room.Password, _room.Category);
                     }
 
                     if (key == ConsoleKey.D && _room.Owner == playerUsername)
@@ -145,12 +144,12 @@ public class RoomRunner
             Console.WriteLine($"Error during polling: {ex.Message}");
         }
     }
-    public void ShowRoom(CancellationTokenSource cts)
+    public void ShowRoom()
     {
 
         // Если в ожидании игры 
         // Запуск асинхронной обработки ввода
-        Task.Run(() => HandleUserInputAsync(cts, _playerUsername));
+        Task.Run(() => HandleUserInputAsync(_playerUsername));
 
         RenderRoomState(_playerUsername);
         while ((_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver" || _room.Owner == _playerUsername)
@@ -159,7 +158,7 @@ public class RoomRunner
         // if (_room.Owner != _playerUsername)
         {
             // Проверяем, был ли отменен токен
-            cts.Token.ThrowIfCancellationRequested();
+            // cts.Token.ThrowIfCancellationRequested();
             try
             {
                 PollGameStateAsync(cts, _room.Id, _room.Category, _room.Password).Wait();
@@ -214,7 +213,7 @@ public class RoomRunner
 
             if (key == ConsoleKey.S && _room.Owner == playerUsername)
             {
-                StartGame(cts, _room.Id, _room.Password, _room.Category);
+                StartGame(_room.Id, _room.Password, _room.Category);
                 return;
             }
 
@@ -227,18 +226,17 @@ public class RoomRunner
     }
 
     // Запуск игры
-    private void StartGame(CancellationTokenSource cts, string roomId, string password, string category)
+    private void StartGame(string roomId, string password, string category)
     {
         Console.Clear();
         try
         {
             var response = _gameDriver.StartGame(roomId, password);
             Console.WriteLine(response.Message);
-            _gameUi.PlayGame(roomId, category, password);
             cts.Cancel();
-            RoomRunner roomRunner = new RoomRunner(_gameDriver, _room);
+            _gameUi.PlayGame(roomId, category, password);
             cts = new CancellationTokenSource();
-            roomRunner.ShowRoom(cts);
+            ShowRoom();
         }
         catch (Exception ex)
         {

@@ -58,47 +58,17 @@ namespace client.Infrastructure
             }
         }
 
-        private void ReconnectToNotificationServer()
+        public async Task ReconnectToNotificationServerAsync()
         {
-            try
+            if (_notificationClient != null)
             {
-                // Закрываем старое соединение, если оно существует
-                if (_notificationClient != null)
-                {
-                    _notificationClient.Close();
-                    _notificationClient.Dispose();
-                    _notificationClient = null;
-                }
-
-                // Создаём новый TcpClient
-                _notificationClient = new TcpClient();
-
-                Console.WriteLine("Attempting to reconnect...");
-
-                // Выполняем подключение
-                _notificationClient.Connect(_address, _notificationPort);
-
-                // Проверяем состояние подключения
-                if (!_notificationClient.Connected)
-                {
-                    throw new Exception("Failed to establish a connection with the server.");
-                }
-
-                // Обновляем поток
-                _notificationStream = _notificationClient.GetStream();
-
-                Console.WriteLine("Reconnected successfully!");
+                _notificationClient.Close();
             }
-            catch (SocketException ex)
-            {
-                Console.WriteLine($"SocketException during reconnect: {ex.Message}");
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to reconnect: {ex.Message}");
-                throw;
-            }
+
+            _notificationClient = new TcpClient();
+            await _notificationClient.ConnectAsync(_address, _notificationPort);
+            _notificationStream = _notificationClient.GetStream();
+            Logger.Info("Reconnected to notification server.");
         }
 
         /// <summary>
@@ -268,12 +238,12 @@ namespace client.Infrastructure
         {
             try
             {
-                if (_notificationClient == null || !_notificationClient.Connected)
-                {
-                    // Logger.Warn("Client is not connected.");
-                    // return default;;
-                    ReconnectToNotificationServer();
-                }
+                // if (_notificationClient == null || !_notificationClient.Connected)
+                // {
+                //     // Logger.Warn("Client is not connected.");
+                //     // return default;;
+                //     ReconnectToNotificationServer();
+                // }
 
                 if (_notificationStream == null)
                 {
@@ -324,25 +294,12 @@ namespace client.Infrastructure
                 throw;
             }
         }
-        public async Task<ServerResponse> ReadMessageFromStreamAsync(NetworkStream stream, CancellationToken cancellationToken)
+        public async Task<ServerResponse> ReadMessageFromStreamAsync(CancellationToken cancellationToken)
         {
             try
             {
-                if (_notificationClient == null || !_notificationClient.Connected)
-                {
-                    // Logger.Warn("Client is not connected.");
-                    // return default;;
-                    ReconnectToNotificationServer();
-
-                    if (_notificationClient != null)
-                    {
-                        stream = _notificationClient.GetStream();
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("Notification client is not initialized.");
-                    }
-                }
+                await ReconnectToNotificationServerAsync();
+                var stream = _notificationClient?.GetStream() ?? throw new InvalidOperationException("Notification client is not initialized.");
 
                 if (stream == null || !stream.CanRead)
                 {
