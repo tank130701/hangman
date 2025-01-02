@@ -87,6 +87,11 @@ func (rc *RoomController) UpdateRoom(roomID string, clientKey domain.ClientKey, 
 		return nil, errs.NewError(tcp.StatusInternalServerError, "failed to update room")
 	}
 
+	err = room.NotifyPlayers("RoomUpdated", events.RoomHasBeenUpdatedEventPayload{RoomId: room.ID})
+	if err != nil {
+		return nil, err
+	}
+
 	return room, nil
 }
 
@@ -207,6 +212,10 @@ func (rc *RoomController) DeleteRoom(clientKey domain.ClientKey, roomID string) 
 	// Проверяем, является ли пользователь владельцем комнаты
 	if *room.Owner != player.Username {
 		return errs.NewError(tcp.StatusUnauthorized, "only the owner can delete the room")
+	}
+	err = room.NotifyPlayers("RoomDeleted", events.RoomHasBeenDeletedEventPayload{RoomId: room.ID})
+	if err != nil {
+		return err
 	}
 	// Удаляем всех игроков из комнаты
 	for _, player := range room.GetAllPlayers() {
@@ -346,7 +355,10 @@ func (rc *RoomController) HandleOwnerChange(room *domain.Room) error {
 	if err := rc.roomRepo.UpdateRoom(room); err != nil {
 		return err
 	}
-
+	err := room.NotifyPlayers("RoomUpdated", events.RoomHasBeenUpdatedEventPayload{RoomId: room.ID})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

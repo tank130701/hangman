@@ -7,7 +7,7 @@ public class MessageController
 {
     private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly TcpClientHandler _clientHandler;
-    private const int StatusSuccess = 2000;
+    private const int statusSuccess = 2000;
     public MessageController(TcpClientHandler clientHandler)
     {
         _clientHandler = clientHandler;
@@ -31,9 +31,9 @@ public class MessageController
 
             // Чтение ответа от сервера
             var response = _clientHandler.ReadMessage<ServerResponse>();
-            if (response.StatusCode != StatusSuccess)
+            if (response.StatusCode != statusSuccess)
             {
-                throw new Exception($"Server returned error: {response.Message}");
+                throw new Exception($"Server returned error: {response.StatusCode} {response.Message}");
             }
 
             // Десериализация полезной нагрузки
@@ -131,6 +131,12 @@ public class MessageController
 
                     case "PlayerLeft":
                         return _clientHandler.DeserializePayload<PlayerLeftEvent>(serverResponse.Payload);
+
+                    case "RoomUpdated":
+                        return _clientHandler.DeserializePayload<RoomUpdatedEvent>(serverResponse.Payload);
+
+                    case "RoomDeleted":
+                        return _clientHandler.DeserializePayload<RoomDeletedEvent>(serverResponse.Payload);
 
                     default:
                         throw new InvalidOperationException($"Unknown event type: {serverResponse.Message}");

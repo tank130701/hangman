@@ -45,19 +45,16 @@ public class RoomRunner
                     if (key == ConsoleKey.C && _room.Owner == playerUsername)
                     {
                         _roomUpdater.ChangeCategory(_room.Id, _room.Password);
-                        RenderRoomState(_playerUsername); //TODO: make events for this
                     }
 
                     if (key == ConsoleKey.L && _room.Owner == playerUsername)
                     {
                         _roomUpdater.ChangeDifficulty(_room.Id, _room.Password);
-                        RenderRoomState(_playerUsername); //TODO: make events for this
                     }
 
                     if (key == ConsoleKey.P && _room.Owner == playerUsername)
                     {
                         _roomUpdater.ChangePassword(_room.Id, _room.Password);
-                        RenderRoomState(_playerUsername); //TODO: make events for this
                     }
 
                     if (key == ConsoleKey.D && _room.Owner == playerUsername)
@@ -139,6 +136,16 @@ public class RoomRunner
                     Console.WriteLine($"Player left: {playerLeftEvent.Username}");
                     await Task.Delay(1000); // 1 секунда ожидания
                     break;
+                case RoomUpdatedEvent roomUpdatedEvent:
+                    RenderRoomState(_playerUsername);
+                    Console.WriteLine($"Room has been updated: {roomUpdatedEvent.RoomID}");
+                    await Task.Delay(1000); // 1 секунда ожидания
+                    break;
+                case RoomDeletedEvent roomDeletedEvent:
+                    Console.WriteLine($"Room has been deleted: {roomDeletedEvent.RoomID}");
+                    await Task.Delay(1000); // 1 секунда ожидания
+                    cts.Cancel();
+                    break;
                 case GameStartedEvent gameStartedEvent:
                     // if (_room.Owner != _playerUsername)
                     {
@@ -178,7 +185,10 @@ public class RoomRunner
         {
             // Если в ожидании игры 
             // Запуск асинхронной обработки ввода
-            Task.Run(() => HandleUserInputAsync(cts, _playerUsername));
+            if (_room.RoomState == "WaitingForPlayers" || _room.RoomState == "GameOver")
+            {
+                Task.Run(() => HandleUserInputAsync(cts, _playerUsername));
+            }
 
             // Проверяем, был ли отменен токен
             cts.Token.ThrowIfCancellationRequested();
@@ -197,7 +207,7 @@ public class RoomRunner
             // Если уже в игре 
             // Thread.Sleep(1000);
         }
-        if (_room.Owner != _playerUsername)
+        if ((_room.Owner != _playerUsername) && !cts.Token.IsCancellationRequested)
         {
             try
             {
