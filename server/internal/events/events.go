@@ -12,3 +12,11 @@ type PlayerJoinedEventPayload struct {
 type PlayerLeftEventPayload struct {
 	Username string `json:"username"` // Имя игрока
 }
+
+type RoomHasBeenDeletedEventPayload struct {
+	RoomId string `json:"room_id"`
+}
+
+type RoomHasBeenUpdatedEventPayload struct {
+	RoomId string `json:"room_id"`
+}
