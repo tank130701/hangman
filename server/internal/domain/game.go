@@ -8,6 +8,12 @@ type Game struct {
 }
 
 func NewGame(word string, attempts int) *Game {
+	guessedWord := make([]rune, len(word))
+	for i, r := range word {
+		if r == '-' {
+			guessedWord[i] = '-' // Дефисы сразу считаются угаданными
+		}
+	}
 	return &Game{
 		Word:         word,
 		GuessedWord:  make([]rune, len(word)),
@@ -32,7 +38,7 @@ func (g *Game) DisplayWord() string {
 func (g *Game) UpdateGuessedWord(letter rune) bool {
 	found := false
 	for i, r := range g.Word {
-		if r == letter {
+		if r == letter && g.GuessedWord[i] != letter {
 			g.GuessedWord[i] = letter
 			found = true
 		}
@@ -42,8 +48,8 @@ func (g *Game) UpdateGuessedWord(letter rune) bool {
 
 // Проверка, угадано ли слово
 func (g *Game) IsWordGuessed() bool {
-	for _, r := range g.Word {
-		if !contains(g.GuessedWord, r) {
+	for i, r := range g.Word {
+		if r != '-' && g.GuessedWord[i] != r {
 			return false
 		}
 	}
