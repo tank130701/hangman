@@ -99,7 +99,7 @@ func (r *InMemoryPlayerRepository) MonitorConnections(timeout time.Duration, ina
 		r.mu.Lock()
 		var inactivePlayers []string
 		for key, player := range r.players {
-			if time.Since(player.LastActive) > 1*time.Minute {
+			if time.Since(player.LastActive) > 3*time.Minute {
 				// Слишком долго без активности
 				player.IsConnected = false
 				inactivePlayers = append(inactivePlayers, player.Username)

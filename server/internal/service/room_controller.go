@@ -195,10 +195,10 @@ func (rc *RoomController) LeaveRoom(clientKey domain.ClientKey, roomID string) e
 	if err != nil {
 		return err
 	}
-	//err = rc.playerRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
-	//if err != nil {
-	//	return err
-	//}
+	err = rc.playerRepo.RemovePlayerByUsername(player.Username) // Удаление из глобального репозитория
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -207,12 +207,14 @@ func (rc *RoomController) DeleteRoom(clientKey domain.ClientKey, roomID string) 
 	if err != nil {
 		return err // Комната не найдена
 	}
-
 	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
 	if err != nil {
 		return err
 	}
-
+	err = rc.playerRepo.UpdatePlayerActivity(clientKey)
+	if err != nil {
+		return err
+	}
 	// Проверяем, является ли пользователь владельцем комнаты
 	if *room.Owner != player.Username {
 		return errs.NewError(tcp.StatusUnauthorized, "only the owner can delete the room")
@@ -286,6 +288,10 @@ func (rc *RoomController) StartGame(clientKey domain.ClientKey, roomID string) e
 	//	return errors.New("game already started")
 	//}
 	player, err := rc.playerRepo.GetPlayerByKey(clientKey)
+	if err != nil {
+		return err
+	}
+	err = rc.playerRepo.UpdatePlayerActivity(clientKey)
 	if err != nil {
 		return err
 	}

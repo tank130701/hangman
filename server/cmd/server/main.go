@@ -9,6 +9,7 @@ import (
 	"hangman/pkg/tcp-server"
 	"hangman/pkg/utils"
 	"os"
+	"time"
 )
 
 func main() {
@@ -28,6 +29,26 @@ func main() {
 
 	// Обработчики
 	handler := tcp.NewHandler(roomController)
+
+	// Канал для передачи неактивных игроков
+	inactivePlayersChan := make(chan []string)
+
+	// Запускаем процесс мониторинга соединений
+	go func() {
+		timeout := 5 * time.Minute // Таймаут проверки неактивных игроков
+		logger.Info(fmt.Sprintf("Player inactivity monitoring started with timeout: %v", timeout))
+		playerRepo.MonitorConnections(timeout, inactivePlayersChan)
+	}()
+
+	// Запускаем обработку неактивных игроков
+	go func() {
+		for inactivePlayers := range inactivePlayersChan {
+			if len(inactivePlayers) > 0 {
+				logger.Info(fmt.Sprintf("Inactive players detected: %v", inactivePlayers))
+				// Дополнительная логика для обработки неактивных игроков
+			}
+		}
+	}()
 
 	// Запускаем процесс очистки неактивных комнат
 	go func() {
