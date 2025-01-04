@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"context"
 	"net"
 	"time"
 )
@@ -15,7 +14,6 @@ type Player struct {
 }
 
 func NewPlayer(
-	ctx context.Context,
 	conn *net.Conn,
 	name string,
 	score int,

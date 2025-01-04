@@ -125,7 +125,7 @@ func (rc *RoomController) JoinRoom(ctx context.Context, username, roomID, passwo
 		}
 
 		// Новый или реконнект существующего игрока
-		player := domain.NewPlayer(ctx, &conn, username, 0)
+		player := domain.NewPlayer(&conn, username, 0)
 
 		// Добавляем/обновляем игрока в репозитории
 		err = rc.playerRepo.AddPlayer(clientKey, player)
