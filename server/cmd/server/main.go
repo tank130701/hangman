@@ -35,7 +35,7 @@ func main() {
 
 	// Запускаем процесс мониторинга соединений
 	go func() {
-		timeout := 5 * time.Minute // Таймаут проверки неактивных игроков
+		timeout := 2 * time.Minute // Таймаут проверки неактивных игроков
 		logger.Info(fmt.Sprintf("Player inactivity monitoring started with timeout: %v", timeout))
 		playerRepo.MonitorConnections(timeout, inactivePlayersChan)
 	}()
