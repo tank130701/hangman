@@ -14,6 +14,7 @@ type IRoomRepository interface {
 }
 
 type IRoomController interface {
+	CheckUsernameUniqueness(username string) bool
 	CreateRoom(ctx context.Context, player string, roomID, password, category, difficulty string) (*Room, error)
 	UpdateRoom(roomID string, clientKey ClientKey, newPassword, newCategory, newDifficulty *string) (*Room, error)
 	JoinRoom(ctx context.Context, username, roomID, password string) (*Room, error)
@@ -31,6 +32,7 @@ type IRoomController interface {
 
 type IPlayerRepository interface {
 	AddPlayer(key ClientKey, player *Player) error
+	PlayerExists(username string) bool
 	RemovePlayer(key ClientKey) error
 	GetPlayerByKey(key ClientKey) (*Player, error)
 	RemovePlayerByUsername(username string) error

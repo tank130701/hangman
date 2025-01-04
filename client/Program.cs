@@ -22,10 +22,10 @@ namespace client
 
             Console.Clear();
             // Создаем экземпляр класса InputHandler
-            InputHandler inputHandler = new InputHandler();
+            ServerAddressValidator serverAddressValidator = new ServerAddressValidator();
 
             // Получаем имя пользователя и адрес сервера
-            string username = inputHandler.GetValidatedUsername();
+
             // string serverAddress = inputHandler.GetValidatedServerAddress();
 
             // string username = "test";
@@ -61,8 +61,12 @@ namespace client
 
             tcpClient.ConnectToNotificationServer();
             var messageController = new MessageController(tcpClient);
-            var gameService = new GameDriver(username, messageController);
-            var gameUi = new GameUI(gameService);
+
+            var gameDriver = new GameDriver(messageController);
+            var usernameVlaidaor = new UsernameValidator(gameDriver);
+            string username = usernameVlaidaor.GetValidatedUsername();
+            gameDriver.SetPlayerUsername(username);
+            var gameUi = new GameUI(gameDriver);
 
             string headerText = "  _   _                                         " +
                 Environment.NewLine + " | | | |                                        " +

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using client.Domain.Events;
 using client.Domain.Interfaces;
 using client.Infrastructure;
@@ -7,20 +8,32 @@ namespace client.Application;
 public class GameDriver : IGameDriver
 {
     private readonly MessageController _messageController;
-    private readonly string _playerUsername;
+    private string _playerUsername;
 
-    public GameDriver(string username, MessageController controller)
+    public GameDriver(MessageController controller)
     {
         _messageController = controller;
-        _playerUsername = username;
+        _playerUsername = "";
     }
     public string GetCurrentPlayerUsername()
     { return _playerUsername; }
+    public void SetPlayerUsername(string username)
+    {
+        _playerUsername = username;
+    }
     public Stream GetRoomStream()
     {
         // Здесь возвращаем существующий NetworkStream,
         // который был открыт при подключении к комнате.
         return _messageController.GetStream();
+    }
+    public CheckUsernameResponse CheckUsername(string username)
+    {
+        var request = new CheckUsernameRequest
+        {
+            PlayerUsername = username
+        };
+        return SendMessage<CheckUsernameResponse>("CHECK_USERNAME", request);
     }
     public CreateRoomResponse CreateRoom(string roomId, string password, string category, string difficulty)
     {

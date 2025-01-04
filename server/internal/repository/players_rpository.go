@@ -35,6 +35,19 @@ func (r *InMemoryPlayerRepository) AddPlayer(key domain.ClientKey, player *domai
 	return nil
 }
 
+func (r *InMemoryPlayerRepository) PlayerExists(username string) bool {
+	r.mu.RLock() // Используем RLock, так как только читаем данные
+	defer r.mu.RUnlock()
+
+	for key := range r.players {
+		if key.Username == username {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (r *InMemoryPlayerRepository) RemovePlayer(key domain.ClientKey) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -32,6 +32,10 @@ func NewRoomController(
 	}
 }
 
+func (rc *RoomController) CheckUsernameUniqueness(username string) bool {
+	return !rc.playerRepo.PlayerExists(username)
+}
+
 func (rc *RoomController) CreateRoom(ctx context.Context, player string, roomID, password, category, difficulty string) (*domain.Room, error) {
 	room := domain.NewRoom(
 		ctx,

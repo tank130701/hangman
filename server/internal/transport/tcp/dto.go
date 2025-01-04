@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+type CheckUsernameRequest struct {
+	Username string `json:"username"`
+}
+
+type CheckUsernameResponse struct {
+	IsUnique bool `json:"is_unique"`
+}
+
 type CreateRoomRequest struct {
 	PlayerUsername string `json:"player_username"`
 	RoomID         string `json:"room_id"`

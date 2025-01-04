@@ -1,46 +1,64 @@
 using System;
 using System.Text.RegularExpressions;
-
-public class InputHandler
+using client.Domain.Interfaces;
+namespace client.Menu
 {
-    public string GetValidatedUsername()
+    public class ServerAddressValidator
     {
-        string username;
-        while (true)
+        public string GetValidatedServerAddress()
         {
-            Console.Write("Enter your username (3-15 characters, alphanumeric): ");
-            username = Console.ReadLine() ?? string.Empty;
-
-            // Проверка: от 3 до 15 символов, только буквы и цифры
-            if (!string.IsNullOrEmpty(username) && Regex.IsMatch(username, @"^[a-zA-Z0-9]{3,15}$"))
+            string serverAddress;
+            while (true)
             {
-                break;
-            }
+                Console.Write("Enter the server address (IPv4 format, e.g., 127.0.0.1): ");
+                serverAddress = Console.ReadLine() ?? string.Empty;
 
-            Console.WriteLine("Invalid username. Please use 3-15 alphanumeric characters.");
+                // Проверка формата IPv4
+                if (Regex.IsMatch(serverAddress, @"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
+                                                @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
+                                                @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
+                                                @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"))
+                {
+                    break;
+                }
+
+                Console.WriteLine("Invalid server address. Please enter a valid IPv4 address.");
+            }
+            return serverAddress;
         }
-        return username;
     }
 
-    public string GetValidatedServerAddress()
+    public class UsernameValidator
     {
-        string serverAddress;
-        while (true)
+        private readonly IGameDriver _gameDriver;
+        public UsernameValidator(IGameDriver driver)
         {
-            Console.Write("Enter the server address (IPv4 format, e.g., 127.0.0.1): ");
-            serverAddress = Console.ReadLine() ?? string.Empty;
-
-            // Проверка формата IPv4
-            if (Regex.IsMatch(serverAddress, @"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
-                                            @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
-                                            @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\." +
-                                            @"(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$"))
-            {
-                break;
-            }
-
-            Console.WriteLine("Invalid server address. Please enter a valid IPv4 address.");
+            _gameDriver = driver;
         }
-        return serverAddress;
+        public string GetValidatedUsername()
+        {
+            string username;
+            while (true)
+            {
+                Console.Write("Enter your username (3-15 characters, alphanumeric): ");
+                username = Console.ReadLine() ?? string.Empty;
+
+                // Проверка: от 3 до 15 символов, только буквы и цифры
+                if (!string.IsNullOrEmpty(username) && Regex.IsMatch(username, @"^[a-zA-Z0-9]{3,15}$"))
+                {
+                    // Проверка уникальности имени пользователя
+                    var response = _gameDriver.CheckUsername(username);
+                    if (!response.IsUnique)
+                    {
+                        Console.WriteLine("Username is already taken. Please choose another one.");
+                        continue;
+                    }
+                    break;
+                }
+
+                Console.WriteLine("Invalid username. Please use 3-15 alphanumeric characters.");
+            }
+            return username;
+        }
     }
 }

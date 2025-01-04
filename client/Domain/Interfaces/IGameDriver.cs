@@ -7,6 +7,7 @@ namespace client.Domain.Interfaces
     public interface IGameDriver
     {
         string GetCurrentPlayerUsername();
+        CheckUsernameResponse CheckUsername(string username);
         CreateRoomResponse CreateRoom(string roomId, string password, string category, string difficulty);
         UpdateRoomResponse UpdateRoom(
             string roomId,

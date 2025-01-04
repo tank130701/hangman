@@ -32,6 +32,26 @@ func (h *Handler) InitRoutes(srv *tcp_server.Server) {
 	srv.RegisterHandler("GET_ALL_ROOMS", h.handleGetAllRoomsRequest)
 	srv.RegisterHandler("GET_LEADERBOARD", h.handleGetLeaderBoard)
 	srv.RegisterHandler("GET_ROOM_STATE", h.handleGetRoomStateRequest)
+	srv.RegisterHandler("CHECK_USERNAME", h.handleCheckUsernameUniquenessRequest)
+}
+
+func (h *Handler) handleCheckUsernameUniquenessRequest(ctx context.Context, message []byte) ([]byte, error) {
+	var req CheckUsernameRequest
+	if err := json.Unmarshal(message, &req); err != nil {
+		return nil, errs.NewError(tcp_server.StatusBadRequest, "Invalid CHECK_USERNAME payload")
+	}
+
+	isUnique := h.RoomController.CheckUsernameUniqueness(req.Username)
+
+	response := CheckUsernameResponse{
+		IsUnique: isUnique,
+	}
+
+	responseBytes, err := json.Marshal(response)
+	if err != nil {
+		return nil, errs.NewError(tcp_server.StatusInternalServerError, err.Error())
+	}
+	return responseBytes, nil
 }
 
 func (h *Handler) handleCreateRoomRequest(ctx context.Context, message []byte) ([]byte, error) {
